@@ -13,7 +13,7 @@ import (
 	"github.com/HundredBai-hub/agent-secyrity/internal/approval"
 	"github.com/HundredBai-hub/agent-secyrity/internal/audit"
 	"github.com/HundredBai-hub/agent-secyrity/internal/auth"
-	"github.com/HundredBai-hub/agent-secyrity/internal/domain"
+	"github.com/HundredBai-hub/agent-secyrity/internal/baseline"
 	"github.com/HundredBai-hub/agent-secyrity/internal/policypack"
 	runtimeSvc "github.com/HundredBai-hub/agent-secyrity/internal/runtime"
 	postgresStore "github.com/HundredBai-hub/agent-secyrity/internal/storage/postgres"
@@ -24,9 +24,11 @@ func main() {
 	addr := getenv("ADDR", ":8080")
 	stores := initStores(context.Background())
 	defer stores.Close()
-	if err := stores.PolicyPacks.Upsert(context.Background(), defaultPolicyPack()); err != nil {
-		slog.Error("seed default policy pack failed", "error", err)
-		os.Exit(1)
+	for _, pack := range baseline.DefaultPolicyPacks("default") {
+		if err := stores.PolicyPacks.Upsert(context.Background(), pack); err != nil {
+			slog.Error("seed baseline policy pack failed", "pack_id", pack.ID, "error", err)
+			os.Exit(1)
+		}
 	}
 	service := runtimeSvc.NewServiceWithOptions(runtimeSvc.Options{
 		PolicyPacks:   stores.PolicyPacks,
@@ -110,57 +112,4 @@ func getenv(key string, fallback string) string {
 		return fallback
 	}
 	return value
-}
-
-func defaultPolicyPack() domain.PolicyPack {
-	return domain.PolicyPack{
-		ID:       "default-runtime",
-		TenantID: "default",
-		Name:     "Default Runtime",
-		Version:  "1.0.0",
-		Enabled:  true,
-		Policies: []domain.Policy{
-			{
-				ID:       "deny-secret-file-access",
-				TenantID: "default",
-				Name:     "Deny secret file access",
-				Enabled:  true,
-				Priority: 100,
-				Conditions: domain.PolicyConditions{
-					EventTypes: []domain.EventType{domain.EventTypeFileAccess},
-					Resources:  []string{".env", "id_rsa", "id_ed25519", ".ssh/"},
-					DataLabels: []string{"secret"},
-				},
-				Decision: domain.DecisionDeny,
-				Reason:   "secret file access is blocked",
-			},
-			{
-				ID:       "require-approval-dangerous-tool",
-				TenantID: "default",
-				Name:     "Require approval for dangerous tools",
-				Enabled:  true,
-				Priority: 90,
-				Conditions: domain.PolicyConditions{
-					EventTypes: []domain.EventType{domain.EventTypeToolCall},
-					ToolNames:  []string{"shell", "exec", "terminal"},
-					Actions:    []string{"execute"},
-				},
-				Decision: domain.DecisionRequireApproval,
-				Reason:   "dangerous tool execution requires approval",
-			},
-			{
-				ID:       "redact-sensitive-response",
-				TenantID: "default",
-				Name:     "Redact sensitive responses",
-				Enabled:  true,
-				Priority: 80,
-				Conditions: domain.PolicyConditions{
-					EventTypes: []domain.EventType{domain.EventTypeResponse},
-					DataLabels: []string{"pii", "secret", "customer_data"},
-				},
-				Decision: domain.DecisionRedact,
-				Reason:   "sensitive response must be redacted",
-			},
-		},
-	}
 }

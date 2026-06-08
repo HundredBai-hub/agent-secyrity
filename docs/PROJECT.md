@@ -8,6 +8,7 @@ Agent Security Platform 是面向企业 AI Agent 运行时安全的控制面与�
 |---|---|---|---|
 | HTTP Server | `cmd/server` | 启动 HTTP 服务，选择内存或 PostgreSQL 存储 | 随服务启动与部署变更补齐 |
 | Auth | `internal/auth` | API Key 配置解析、Bearer 认证和租户授权 | [API Key Auth 模块说明](modules/api-key-auth/MODULE.md) |
+| Baseline Policy Packs | `internal/baseline` | 内置高频业务场景策略包模板 | [Baseline Policy Packs 模块说明](modules/baseline-policy-packs/MODULE.md) |
 | Domain | `internal/domain` | 运行时事件、策略、决策、审批、审计领域模型 | 随领域模型稳定化变更补齐 |
 | Runtime Service | `internal/runtime` | 串联策略评估、审计记录和审批执行校验 | 随运行时编排变更补齐 |
 | Policy Engine | `internal/policy` | 根据租户策略、主体、资源、动作和数据标签计算决策 | 随策略语言变更补齐 |

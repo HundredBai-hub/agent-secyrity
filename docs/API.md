@@ -152,6 +152,15 @@ Authorization: Bearer replace-with-runtime-key
 
 ## Policy Pack 管理
 
+服务启动时会为 `default` 租户写入内置 baseline 策略包。内置策略包面向常见 Agent 业务场景：
+
+| Pack ID | 场景 | 策略意图 |
+|---|---|---|
+| `baseline-code-repository` | 代码仓库 Agent | 保护 secrets、SSH key、环境变量，危险 shell 需要审批 |
+| `baseline-customer-support` | 客服 Agent | 客户数据和 PII 输出脱敏，高风险账号操作需要审批 |
+| `baseline-finance-operations` | 财务 Agent | 付款、转账、退款等资金动作需要审批 |
+| `baseline-data-analysis` | 数据分析 Agent | 生产数据库访问和客户数据导出需要审批 |
+
 ### `PUT /v1/tenants/{tenant_id}/policy-packs/{pack_id}`
 
 创建或更新策略包。路径中的 `tenant_id` 和 `pack_id` 优先，服务端会覆盖请求体中的同名字段，避免跨租户写入。

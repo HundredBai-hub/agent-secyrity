@@ -54,6 +54,7 @@ type RuntimeEvent struct {
 	TaskID     string    `json:"task_id"`
 	EventType  EventType `json:"event_type"`
 	Subject    Subject   `json:"subject,omitempty"`
+	ApprovalID string    `json:"approval_id,omitempty"`
 	ToolName   string    `json:"tool_name,omitempty"`
 	Resource   string    `json:"resource,omitempty"`
 	Action     string    `json:"action"`

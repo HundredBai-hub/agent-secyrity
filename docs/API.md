@@ -184,3 +184,30 @@
 |---|---|
 | `approved` | 审批通过 |
 | `rejected` | 审批拒绝 |
+
+## Approval Enforcement
+
+审批通过后，Agent 需要在重新提交同一运行时事件时带上 `approval_id`：
+
+```json
+{
+  "tenant_id": "tenant-a",
+  "agent_id": "agent-code-001",
+  "user_id": "dev-001",
+  "task_id": "fix-build",
+  "event_type": "tool_call",
+  "tool_name": "shell",
+  "action": "execute",
+  "approval_id": "approval-1"
+}
+```
+
+Runtime 会校验：
+
+| 条件 | 要求 |
+|---|---|
+| 租户 | `approval_id` 必须属于同一 `tenant_id` |
+| 状态 | 审批状态必须为 `approved` |
+| 事件绑定 | agent、user、task、event_type、tool_name、resource、action、data_labels 必须与原审批事件一致 |
+
+校验通过返回 `allow`；校验失败返回 `deny` 并写入审计。

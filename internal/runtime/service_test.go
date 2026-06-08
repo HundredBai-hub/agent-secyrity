@@ -108,6 +108,135 @@ func TestServiceEvaluateCreatesApprovalRequest(t *testing.T) {
 	}
 }
 
+func TestServiceEvaluateAllowsApprovedMatchingApproval(t *testing.T) {
+	approvalStore := approval.NewMemoryStore()
+	event := approvalEvent("tenant-a")
+	request, err := approvalStore.Create(context.Background(), domain.ApprovalRequest{
+		TenantID:  "tenant-a",
+		Event:     event,
+		Result:    domain.EvaluationResult{Decision: domain.DecisionRequireApproval},
+		ExpiresAt: time.Now().Add(time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if _, err := approvalStore.Decide(context.Background(), "tenant-a", request.ID, approval.DecisionInput{
+		Status:    domain.ApprovalStatusApproved,
+		DecidedBy: "secops-001",
+		Now:       time.Now(),
+	}); err != nil {
+		t.Fatalf("Decide() error = %v", err)
+	}
+	event.ApprovalID = request.ID
+	service := NewServiceWithOptions(Options{
+		Engine:        policy.NewEngine(requireApprovalPolicies()),
+		AuditStore:    audit.NewMemoryStore(),
+		ApprovalStore: approvalStore,
+	})
+
+	result, err := service.Evaluate(context.Background(), event)
+	if err != nil {
+		t.Fatalf("Evaluate() error = %v", err)
+	}
+	if result.Decision != domain.DecisionAllow {
+		t.Fatalf("Decision = %s, want allow", result.Decision)
+	}
+}
+
+func TestServiceEvaluateDeniesMismatchedApproval(t *testing.T) {
+	approvalStore := approval.NewMemoryStore()
+	request, err := approvalStore.Create(context.Background(), domain.ApprovalRequest{
+		TenantID:  "tenant-a",
+		Event:     approvalEvent("tenant-a"),
+		Result:    domain.EvaluationResult{Decision: domain.DecisionRequireApproval},
+		ExpiresAt: time.Now().Add(time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if _, err := approvalStore.Decide(context.Background(), "tenant-a", request.ID, approval.DecisionInput{
+		Status:    domain.ApprovalStatusApproved,
+		DecidedBy: "secops-001",
+		Now:       time.Now(),
+	}); err != nil {
+		t.Fatalf("Decide() error = %v", err)
+	}
+	event := approvalEvent("tenant-a")
+	event.ApprovalID = request.ID
+	event.ToolName = "exec"
+	service := NewServiceWithOptions(Options{
+		Engine:        policy.NewEngine(requireApprovalPolicies()),
+		AuditStore:    audit.NewMemoryStore(),
+		ApprovalStore: approvalStore,
+	})
+
+	result, err := service.Evaluate(context.Background(), event)
+	if err != nil {
+		t.Fatalf("Evaluate() error = %v", err)
+	}
+	if result.Decision != domain.DecisionDeny {
+		t.Fatalf("Decision = %s, want deny", result.Decision)
+	}
+}
+
+func TestServiceEvaluateDeniesPendingApproval(t *testing.T) {
+	approvalStore := approval.NewMemoryStore()
+	event := approvalEvent("tenant-a")
+	request, err := approvalStore.Create(context.Background(), domain.ApprovalRequest{
+		TenantID:  "tenant-a",
+		Event:     event,
+		Result:    domain.EvaluationResult{Decision: domain.DecisionRequireApproval},
+		ExpiresAt: time.Now().Add(time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	event.ApprovalID = request.ID
+	service := NewServiceWithOptions(Options{
+		Engine:        policy.NewEngine(requireApprovalPolicies()),
+		AuditStore:    audit.NewMemoryStore(),
+		ApprovalStore: approvalStore,
+	})
+
+	result, err := service.Evaluate(context.Background(), event)
+	if err != nil {
+		t.Fatalf("Evaluate() error = %v", err)
+	}
+	if result.Decision != domain.DecisionDeny {
+		t.Fatalf("Decision = %s, want deny", result.Decision)
+	}
+}
+
+func approvalEvent(tenantID string) domain.RuntimeEvent {
+	return domain.RuntimeEvent{
+		TenantID:  tenantID,
+		AgentID:   "agent-code-001",
+		UserID:    "user-001",
+		TaskID:    "task-001",
+		EventType: domain.EventTypeToolCall,
+		ToolName:  "shell",
+		Action:    "execute",
+	}
+}
+
+func requireApprovalPolicies() []domain.Policy {
+	return []domain.Policy{
+		{
+			ID:       "require-approval-dangerous-tool",
+			TenantID: "tenant-a",
+			Enabled:  true,
+			Priority: 100,
+			Conditions: domain.PolicyConditions{
+				EventTypes: []domain.EventType{domain.EventTypeToolCall},
+				ToolNames:  []string{"shell", "exec"},
+				Actions:    []string{"execute"},
+			},
+			Decision: domain.DecisionRequireApproval,
+			Reason:   "dangerous tool execution requires approval",
+		},
+	}
+}
+
 func TestServiceEvaluateLoadsEnabledPolicyPacks(t *testing.T) {
 	store := audit.NewMemoryStore()
 	packStore := policypack.NewMemoryStore()

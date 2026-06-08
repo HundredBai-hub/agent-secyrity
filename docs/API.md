@@ -193,6 +193,71 @@ Authorization: Bearer replace-with-runtime-key
 {"enabled": false}
 ```
 
+## Policy Simulation
+
+### `POST /v1/tenants/{tenant_id}/policy-simulations`
+
+提交一个运行时事件和候选策略包，执行上线前 dry-run。该接口只返回模拟决策，不写审计记录，不创建审批单，不修改策略包状态。
+
+请求：
+
+```json
+{
+  "event": {
+    "schema_version": "runtime_event.v1",
+    "tenant_id": "tenant-a",
+    "agent_id": "agent-code-001",
+    "user_id": "dev-001",
+    "task_id": "fix-build",
+    "event_type": "tool_call",
+    "tool_name": "shell",
+    "action": "execute"
+  },
+  "policy_packs": [
+    {
+      "id": "candidate-runtime",
+      "tenant_id": "tenant-a",
+      "enabled": true,
+      "policies": [
+        {
+          "id": "deny-shell",
+          "enabled": true,
+          "priority": 100,
+          "conditions": {
+            "event_types": ["tool_call"],
+            "tool_names": ["shell"]
+          },
+          "decision": "deny",
+          "reason": "shell is blocked"
+        }
+      ]
+    }
+  ]
+}
+```
+
+响应：
+
+```json
+{
+  "schema_version": "policy_simulation.v1",
+  "result": {
+    "decision": "deny",
+    "reason": "shell is blocked",
+    "matched_policy_ids": ["deny-shell"]
+  }
+}
+```
+
+约束：
+
+| 条件 | 要求 |
+|---|---|
+| 租户 | `event.tenant_id` 必须与路径 `tenant_id` 一致 |
+| 鉴权 | 启用 API Key 时，Key 必须允许访问该租户 |
+| 校验 | Runtime Event 校验失败返回 422 和 `details.fields` |
+| 副作用 | 不写审计、不创建审批、不保存策略包 |
+
 ## Approval Workflow
 
 当评估结果为 `require_approval` 时，响应会包含 `approval_id`：

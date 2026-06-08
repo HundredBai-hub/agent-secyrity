@@ -169,6 +169,114 @@ func TestHandlerEvaluateReturnsValidationDetails(t *testing.T) {
 	}
 }
 
+func TestHandlerSimulatesPolicyPackWithoutAuditSideEffects(t *testing.T) {
+	store := audit.NewMemoryStore()
+	service := runtimeSvc.NewService(policy.NewEngine(nil), store)
+	server := httptest.NewServer(NewRouter(service, store))
+	defer server.Close()
+
+	resp, err := http.Post(server.URL+"/v1/tenants/tenant-a/policy-simulations", "application/json", bytes.NewBufferString(`{
+		"event": {
+			"schema_version": "runtime_event.v1",
+			"tenant_id": "tenant-a",
+			"agent_id": "agent-code-001",
+			"user_id": "user-001",
+			"task_id": "task-001",
+			"event_type": "tool_call",
+			"tool_name": "shell",
+			"action": "execute"
+		},
+		"policy_packs": [{
+			"id": "candidate-runtime",
+			"tenant_id": "tenant-a",
+			"enabled": true,
+			"policies": [{
+				"id": "deny-shell",
+				"enabled": true,
+				"priority": 100,
+				"conditions": {"event_types": ["tool_call"], "tool_names": ["shell"]},
+				"decision": "deny",
+				"reason": "shell is blocked"
+			}]
+		}]
+	}`))
+	if err != nil {
+		t.Fatalf("Post() error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want 200", resp.StatusCode)
+	}
+	var payload struct {
+		SchemaVersion string                  `json:"schema_version"`
+		Result        domain.EvaluationResult `json:"result"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if payload.SchemaVersion != policy.PolicySimulationSchemaV1 {
+		t.Fatalf("schema_version = %q, want %q", payload.SchemaVersion, policy.PolicySimulationSchemaV1)
+	}
+	if payload.Result.Decision != domain.DecisionDeny {
+		t.Fatalf("Decision = %s, want deny", payload.Result.Decision)
+	}
+	records, err := store.List(context.Background(), audit.ListOptions{Limit: 10})
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	if len(records) != 0 {
+		t.Fatalf("len(audit records) = %d, want 0", len(records))
+	}
+}
+
+func TestHandlerSimulatePolicyPackRejectsTenantMismatch(t *testing.T) {
+	store := audit.NewMemoryStore()
+	service := runtimeSvc.NewService(policy.NewEngine(nil), store)
+	server := httptest.NewServer(NewRouter(service, store))
+	defer server.Close()
+
+	resp, err := http.Post(server.URL+"/v1/tenants/tenant-a/policy-simulations", "application/json", bytes.NewBufferString(`{
+		"event": {
+			"tenant_id": "tenant-b",
+			"agent_id": "agent-code-001",
+			"user_id": "user-001",
+			"task_id": "task-001",
+			"event_type": "tool_call",
+			"tool_name": "shell",
+			"action": "execute"
+		}
+	}`))
+	if err != nil {
+		t.Fatalf("Post() error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("StatusCode = %d, want 403", resp.StatusCode)
+	}
+}
+
+func TestHandlerSimulatePolicyPackReturnsValidationDetails(t *testing.T) {
+	store := audit.NewMemoryStore()
+	service := runtimeSvc.NewService(policy.NewEngine(nil), store)
+	server := httptest.NewServer(NewRouter(service, store))
+	defer server.Close()
+
+	resp, err := http.Post(server.URL+"/v1/tenants/tenant-a/policy-simulations", "application/json", bytes.NewBufferString(`{
+		"event": {
+			"schema_version": "runtime_event.v9",
+			"tenant_id": "tenant-a",
+			"event_type": "unsupported"
+		}
+	}`))
+	if err != nil {
+		t.Fatalf("Post() error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("StatusCode = %d, want 422", resp.StatusCode)
+	}
+}
+
 func TestHandlerManagesApprovals(t *testing.T) {
 	auditStore := audit.NewMemoryStore()
 	approvalStore := approval.NewMemoryStore()

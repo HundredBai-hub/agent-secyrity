@@ -11,6 +11,7 @@ import (
 	"github.com/HundredBai-hub/agent-secyrity/internal/audit"
 	"github.com/HundredBai-hub/agent-secyrity/internal/auth"
 	"github.com/HundredBai-hub/agent-secyrity/internal/domain"
+	"github.com/HundredBai-hub/agent-secyrity/internal/policy"
 	"github.com/HundredBai-hub/agent-secyrity/internal/policypack"
 	runtimeSvc "github.com/HundredBai-hub/agent-secyrity/internal/runtime"
 )
@@ -67,6 +68,7 @@ func (h *Handler) router() http.Handler {
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/policy-packs", h.listPolicyPacks)
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/policy-packs/{pack_id}", h.getPolicyPack)
 	mux.HandleFunc("PATCH /v1/tenants/{tenant_id}/policy-packs/{pack_id}/enabled", h.setPolicyPackEnabled)
+	mux.HandleFunc("POST /v1/tenants/{tenant_id}/policy-simulations", h.simulatePolicyPack)
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/approvals", h.listApprovals)
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/approvals/{approval_id}", h.getApproval)
 	mux.HandleFunc("POST /v1/tenants/{tenant_id}/approvals/{approval_id}/decide", h.decideApproval)
@@ -228,6 +230,34 @@ func (h *Handler) setPolicyPackEnabled(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, pack)
+}
+
+func (h *Handler) simulatePolicyPack(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.PathValue("tenant_id")
+	if !h.authorizeTenant(w, r, tenantID) {
+		return
+	}
+	defer r.Body.Close()
+	var request policy.SimulationRequest
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	if request.Event.TenantID != tenantID {
+		writeError(w, http.StatusForbidden, "forbidden", "simulation event tenant_id must match path tenant_id")
+		return
+	}
+	result, err := policy.Simulate(request)
+	if err != nil {
+		var validationErr *domain.ValidationError
+		if errors.As(err, &validationErr) {
+			writeErrorWithDetails(w, http.StatusUnprocessableEntity, "invalid_runtime_event", validationErr.Message, map[string][]domain.FieldError{"fields": validationErr.Fields})
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "policy_simulation_failed", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
 }
 
 func (h *Handler) listApprovals(w http.ResponseWriter, r *http.Request) {

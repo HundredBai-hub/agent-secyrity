@@ -1,0 +1,59 @@
+{
+  "id": "TPF-002",
+  "title": "扩展策略引擎，支持按租户隔离、策略包启停和主体条件匹配",
+  "type": "feature",
+  "priority": "P0",
+  "goal": "扩展策略引擎，支持按租户隔离、策略包启停和主体条件匹配",
+  "workspace": "",
+  "worktree": {
+    "enabled": false,
+    "baseRef": "",
+    "dir": "",
+    "branch": ""
+  },
+  "reportDir": "",
+  "maxFixAttempts": 0,
+  "dryRun": false,
+  "policy": {
+    "disableDefaultDeny": false,
+    "denyCommands": null,
+    "denyArgsContains": null,
+    "denyPathContains": null
+  },
+  "scope": {
+    "include": [
+      "扩展策略引擎，支持按租户隔离、策略包启停和主体条件匹配"
+    ],
+    "exclude": [
+      "生产环境操作",
+      "真实密钥读取",
+      "自动合并"
+    ]
+  },
+  "acceptance": [
+    "项目级验证命令通过",
+    "报告中包含执行结果"
+  ],
+  "risk": [
+    "遵循项目 .harness/config.json 安全策略",
+    "目标项目实现语言不限，但必须具备明确验证命令、执行边界、可审计报告和失败反馈循环",
+    "充分借鉴 Superpowers 工作流：先计划、先测试、隔离执行、系统化调试、完成前验证"
+  ],
+  "commands": {
+    "analyze": null,
+    "plan": null,
+    "agent": null,
+    "fix": null,
+    "verify": null
+  },
+  "context": [
+    {
+      "path": ".harness/changes/tenant-policy-foundation/proposal.md",
+      "purpose": "变更提案"
+    },
+    {
+      "path": ".harness/changes/tenant-policy-foundation/design.md",
+      "purpose": "变更设计"
+    }
+  ]
+}

@@ -10,6 +10,9 @@ Agent Security Platform 是面向企业 AI Agent 运行时安全的生产级工�
 - 控制 Agent 执行边界：基于身份、任务、工具、资源、数据标签、风险等级做策略判断。
 - 处置高风险行为：allow、deny、redact、require approval、record。
 - 审计和追责：按 Agent、用户、任务、资源、策略命中和决策结果回放事件。
+- 企业级隔离：按 `tenant_id` 隔离事件、策略和审计记录。
+- 主体身份治理：用结构化 `subject` 表达用户、Agent、服务账号和工作流身份。
+- 策略包治理：用 Policy Pack 承载策略集合、版本和启用状态。
 - 支撑生产落地：稳定 API、明确模块边界、可测试、可审计、可扩展。
 
 ## 工程约束

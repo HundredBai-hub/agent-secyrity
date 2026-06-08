@@ -19,6 +19,7 @@ func TestHandlerEvaluateAndListAuditEvents(t *testing.T) {
 	service := runtimeSvc.NewService(policy.NewEngine([]domain.Policy{
 		{
 			ID:       "redact-sensitive-response",
+			TenantID: "tenant-a",
 			Enabled:  true,
 			Priority: 80,
 			Conditions: domain.PolicyConditions{
@@ -33,6 +34,7 @@ func TestHandlerEvaluateAndListAuditEvents(t *testing.T) {
 	defer server.Close()
 
 	body := bytes.NewBufferString(`{
+		"tenant_id":"tenant-a",
 		"agent_id":"agent-support-001",
 		"user_id":"user-001",
 		"task_id":"ticket-001",

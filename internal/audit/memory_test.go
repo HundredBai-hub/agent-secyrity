@@ -11,6 +11,7 @@ func TestMemoryStoreAppendAndList(t *testing.T) {
 	store := NewMemoryStore()
 	record := domain.AuditRecord{
 		Event: domain.RuntimeEvent{
+			TenantID:  "tenant-a",
 			AgentID:   "agent-code-001",
 			UserID:    "user-001",
 			TaskID:    "task-001",

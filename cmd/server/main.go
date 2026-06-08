@@ -60,6 +60,7 @@ func defaultPolicies() []domain.Policy {
 	return []domain.Policy{
 		{
 			ID:       "deny-secret-file-access",
+			TenantID: "default",
 			Name:     "Deny secret file access",
 			Enabled:  true,
 			Priority: 100,
@@ -73,6 +74,7 @@ func defaultPolicies() []domain.Policy {
 		},
 		{
 			ID:       "require-approval-dangerous-tool",
+			TenantID: "default",
 			Name:     "Require approval for dangerous tools",
 			Enabled:  true,
 			Priority: 90,
@@ -86,6 +88,7 @@ func defaultPolicies() []domain.Policy {
 		},
 		{
 			ID:       "redact-sensitive-response",
+			TenantID: "default",
 			Name:     "Redact sensitive responses",
 			Enabled:  true,
 			Priority: 80,

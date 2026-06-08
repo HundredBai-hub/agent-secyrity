@@ -16,6 +16,21 @@ func NewEngine(policies []domain.Policy) *Engine {
 	return &Engine{policies: copied}
 }
 
+func NewEngineFromPacks(packs []domain.PolicyPack) *Engine {
+	var policies []domain.Policy
+	for _, pack := range packs {
+		if !pack.Enabled {
+			continue
+		}
+		for _, policy := range pack.Policies {
+			policy.TenantID = firstNonEmpty(policy.TenantID, pack.TenantID)
+			policy.PolicyPackID = firstNonEmpty(policy.PolicyPackID, pack.ID)
+			policies = append(policies, policy)
+		}
+	}
+	return NewEngine(policies)
+}
+
 func (e *Engine) Evaluate(event domain.RuntimeEvent) domain.EvaluationResult {
 	best := domain.EvaluationResult{
 		Decision: domain.DecisionAllow,
@@ -23,7 +38,7 @@ func (e *Engine) Evaluate(event domain.RuntimeEvent) domain.EvaluationResult {
 	}
 	bestPolicyPriority := -1
 	for _, policy := range e.policies {
-		if !policy.Enabled || !matches(policy.Conditions, event) {
+		if !policy.Enabled || !matchesTenant(policy, event) || !matches(policy.Conditions, event) {
 			continue
 		}
 		best.MatchedPolicyIDs = append(best.MatchedPolicyIDs, policy.ID)
@@ -37,6 +52,13 @@ func (e *Engine) Evaluate(event domain.RuntimeEvent) domain.EvaluationResult {
 		}
 	}
 	return best
+}
+
+func matchesTenant(policy domain.Policy, event domain.RuntimeEvent) bool {
+	if strings.TrimSpace(policy.TenantID) == "" {
+		return true
+	}
+	return strings.EqualFold(strings.TrimSpace(policy.TenantID), strings.TrimSpace(event.TenantID))
 }
 
 func shouldReplace(policy domain.Policy, current domain.Decision, currentPolicyPriority int) bool {
@@ -53,7 +75,12 @@ func matches(conditions domain.PolicyConditions, event domain.RuntimeEvent) bool
 		matchString(conditions.Actions, event.Action) &&
 		matchAnyString(conditions.DataLabels, event.DataLabels) &&
 		matchString(conditions.AgentIDs, event.AgentID) &&
-		matchString(conditions.UserIDs, event.UserID)
+		matchString(conditions.UserIDs, event.UserID) &&
+		matchSubjectType(conditions.SubjectTypes, event.Subject.Type) &&
+		matchString(conditions.SubjectIDs, event.Subject.ID) &&
+		matchAnyString(conditions.SubjectRoles, event.Subject.Roles) &&
+		matchAnyString(conditions.SubjectGroups, event.Subject.Groups) &&
+		matchString(conditions.SubjectRiskLevels, event.Subject.RiskLevel)
 }
 
 func matchEventType(allowed []domain.EventType, actual domain.EventType) bool {
@@ -108,4 +135,25 @@ func matchAnyString(required []string, actual []string) bool {
 		}
 	}
 	return false
+}
+
+func matchSubjectType(allowed []domain.SubjectType, actual domain.SubjectType) bool {
+	if len(allowed) == 0 {
+		return true
+	}
+	for _, item := range allowed {
+		if item == actual {
+			return true
+		}
+	}
+	return false
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	return ""
 }

@@ -10,6 +10,7 @@ func TestEngineEvaluateReturnsHighestPriorityDecision(t *testing.T) {
 	engine := NewEngine([]domain.Policy{
 		{
 			ID:       "record-all-file-access",
+			TenantID: "tenant-a",
 			Name:     "Record file access",
 			Enabled:  true,
 			Priority: 10,
@@ -21,6 +22,7 @@ func TestEngineEvaluateReturnsHighestPriorityDecision(t *testing.T) {
 		},
 		{
 			ID:       "deny-secret-file-access",
+			TenantID: "tenant-a",
 			Name:     "Deny secret file access",
 			Enabled:  true,
 			Priority: 100,
@@ -34,6 +36,7 @@ func TestEngineEvaluateReturnsHighestPriorityDecision(t *testing.T) {
 	})
 
 	result := engine.Evaluate(domain.RuntimeEvent{
+		TenantID:   "tenant-a",
 		AgentID:    "agent-code-001",
 		UserID:     "user-001",
 		TaskID:     "task-001",
@@ -56,6 +59,7 @@ func TestEngineEvaluateReturnsHighestPriorityDecision(t *testing.T) {
 
 func TestEngineEvaluateDefaultsToAllow(t *testing.T) {
 	result := NewEngine(nil).Evaluate(domain.RuntimeEvent{
+		TenantID:  "tenant-a",
 		AgentID:   "agent-code-001",
 		UserID:    "user-001",
 		TaskID:    "task-001",
@@ -66,5 +70,110 @@ func TestEngineEvaluateDefaultsToAllow(t *testing.T) {
 
 	if result.Decision != domain.DecisionAllow {
 		t.Fatalf("Decision = %s, want allow", result.Decision)
+	}
+}
+
+func TestEngineEvaluateIsolatesPoliciesByTenant(t *testing.T) {
+	engine := NewEngine([]domain.Policy{
+		{
+			ID:       "tenant-a-deny-shell",
+			TenantID: "tenant-a",
+			Enabled:  true,
+			Priority: 100,
+			Conditions: domain.PolicyConditions{
+				EventTypes: []domain.EventType{domain.EventTypeToolCall},
+				ToolNames:  []string{"shell"},
+			},
+			Decision: domain.DecisionDeny,
+			Reason:   "tenant-a blocks shell",
+		},
+	})
+
+	result := engine.Evaluate(domain.RuntimeEvent{
+		TenantID:  "tenant-b",
+		AgentID:   "agent-code-001",
+		UserID:    "user-001",
+		TaskID:    "task-001",
+		EventType: domain.EventTypeToolCall,
+		ToolName:  "shell",
+		Action:    "execute",
+	})
+
+	if result.Decision != domain.DecisionAllow {
+		t.Fatalf("Decision = %s, want allow for different tenant", result.Decision)
+	}
+}
+
+func TestEngineEvaluateMatchesSubjectRoles(t *testing.T) {
+	engine := NewEngine([]domain.Policy{
+		{
+			ID:       "support-response-redaction",
+			TenantID: "tenant-a",
+			Enabled:  true,
+			Priority: 100,
+			Conditions: domain.PolicyConditions{
+				EventTypes:   []domain.EventType{domain.EventTypeResponse},
+				SubjectRoles: []string{"support"},
+				DataLabels:   []string{"pii"},
+			},
+			Decision: domain.DecisionRedact,
+			Reason:   "support responses with pii must be redacted",
+		},
+	})
+
+	result := engine.Evaluate(domain.RuntimeEvent{
+		TenantID:   "tenant-a",
+		AgentID:    "agent-support-001",
+		UserID:     "user-001",
+		TaskID:     "ticket-001",
+		EventType:  domain.EventTypeResponse,
+		Action:     "write",
+		DataLabels: []string{"pii"},
+		Subject: domain.Subject{
+			Type:  domain.SubjectTypeUser,
+			ID:    "user-001",
+			Roles: []string{"support"},
+		},
+	})
+
+	if result.Decision != domain.DecisionRedact {
+		t.Fatalf("Decision = %s, want redact", result.Decision)
+	}
+}
+
+func TestEngineFromPolicyPacksSkipsDisabledPacks(t *testing.T) {
+	engine := NewEngineFromPacks([]domain.PolicyPack{
+		{
+			ID:       "pack-disabled",
+			TenantID: "tenant-a",
+			Version:  "1.0.0",
+			Enabled:  false,
+			Policies: []domain.Policy{
+				{
+					ID:       "deny-shell",
+					Enabled:  true,
+					Priority: 100,
+					Conditions: domain.PolicyConditions{
+						EventTypes: []domain.EventType{domain.EventTypeToolCall},
+						ToolNames:  []string{"shell"},
+					},
+					Decision: domain.DecisionDeny,
+				},
+			},
+		},
+	})
+
+	result := engine.Evaluate(domain.RuntimeEvent{
+		TenantID:  "tenant-a",
+		AgentID:   "agent-code-001",
+		UserID:    "user-001",
+		TaskID:    "task-001",
+		EventType: domain.EventTypeToolCall,
+		ToolName:  "shell",
+		Action:    "execute",
+	})
+
+	if result.Decision != domain.DecisionAllow {
+		t.Fatalf("Decision = %s, want allow because pack is disabled", result.Decision)
 	}
 }

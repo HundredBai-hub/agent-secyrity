@@ -14,6 +14,7 @@ func TestServiceEvaluateStoresAuditRecord(t *testing.T) {
 	service := NewService(policy.NewEngine([]domain.Policy{
 		{
 			ID:       "deny-secret-file-access",
+			TenantID: "tenant-a",
 			Enabled:  true,
 			Priority: 100,
 			Conditions: domain.PolicyConditions{
@@ -26,6 +27,7 @@ func TestServiceEvaluateStoresAuditRecord(t *testing.T) {
 	}), store)
 
 	result, err := service.Evaluate(context.Background(), domain.RuntimeEvent{
+		TenantID:   "tenant-a",
 		AgentID:    "agent-code-001",
 		UserID:     "user-001",
 		TaskID:     "task-001",

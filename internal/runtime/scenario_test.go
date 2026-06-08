@@ -13,6 +13,7 @@ func TestProductionScenarios(t *testing.T) {
 	service := NewService(policy.NewEngine([]domain.Policy{
 		{
 			ID:       "deny-secret-file-access",
+			TenantID: "tenant-a",
 			Enabled:  true,
 			Priority: 100,
 			Conditions: domain.PolicyConditions{
@@ -25,6 +26,7 @@ func TestProductionScenarios(t *testing.T) {
 		},
 		{
 			ID:       "require-approval-dangerous-tool",
+			TenantID: "tenant-a",
 			Enabled:  true,
 			Priority: 90,
 			Conditions: domain.PolicyConditions{
@@ -37,6 +39,7 @@ func TestProductionScenarios(t *testing.T) {
 		},
 		{
 			ID:       "redact-sensitive-response",
+			TenantID: "tenant-a",
 			Enabled:  true,
 			Priority: 80,
 			Conditions: domain.PolicyConditions{
@@ -56,6 +59,7 @@ func TestProductionScenarios(t *testing.T) {
 		{
 			name: "blocks sensitive file reads",
 			event: domain.RuntimeEvent{
+				TenantID:   "tenant-a",
 				AgentID:    "agent-code-001",
 				UserID:     "dev-001",
 				TaskID:     "fix-build",
@@ -69,6 +73,7 @@ func TestProductionScenarios(t *testing.T) {
 		{
 			name: "requires approval for dangerous tool calls",
 			event: domain.RuntimeEvent{
+				TenantID:  "tenant-a",
 				AgentID:   "agent-code-001",
 				UserID:    "dev-001",
 				TaskID:    "fix-build",
@@ -82,6 +87,7 @@ func TestProductionScenarios(t *testing.T) {
 		{
 			name: "redacts sensitive customer response",
 			event: domain.RuntimeEvent{
+				TenantID:   "tenant-a",
 				AgentID:    "agent-support-001",
 				UserID:     "support-001",
 				TaskID:     "ticket-001",

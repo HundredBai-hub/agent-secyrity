@@ -4,6 +4,7 @@ import "testing"
 
 func TestRuntimeEventValidateRequiresCoreFields(t *testing.T) {
 	event := RuntimeEvent{
+		TenantID:  "tenant-a",
 		AgentID:   "agent-code-001",
 		UserID:    "user-001",
 		TaskID:    "task-001",
@@ -19,6 +20,21 @@ func TestRuntimeEventValidateRequiresCoreFields(t *testing.T) {
 	event.AgentID = ""
 	if err := event.Validate(); err == nil {
 		t.Fatal("Validate() error = nil, want missing agent_id error")
+	}
+}
+
+func TestRuntimeEventValidateRequiresTenantID(t *testing.T) {
+	event := RuntimeEvent{
+		AgentID:   "agent-code-001",
+		UserID:    "user-001",
+		TaskID:    "task-001",
+		EventType: EventTypeToolCall,
+		ToolName:  "shell",
+		Action:    "execute",
+	}
+
+	if err := event.Validate(); err == nil {
+		t.Fatal("Validate() error = nil, want missing tenant_id error")
 	}
 }
 

@@ -15,6 +15,7 @@ Agent Security Platform 是面向企业 AI Agent 运行时安全的生产级工�
 - 策略包治理：用 Policy Pack 承载策略集合、版本和启用状态。
 - 策略运营 API：支持按租户创建、查询、列出、启停策略包。
 - 审批流：`require_approval` 自动生成审批单，支持审批通过、拒绝、过期和审计。
+- Go Runtime SDK：为 Go Agent、工具代理和网关插件提供标准接入方式。
 - 支撑生产落地：稳定 API、明确模块边界、可测试、可审计、可扩展。
 
 ## 工程约束
@@ -33,6 +34,7 @@ Agent Security Platform 是面向企业 AI Agent 运行时安全的生产级工�
 | Runtime Service | Go | 单二进制、标准库 HTTP、适合安全网关和策略评估 |
 | Storage | PostgreSQL / In-memory | 默认内存，设置 `DATABASE_URL` 后使用 PostgreSQL |
 | API | REST / JSON | 先提供稳定可测接口，再扩展 SDK 和控制台 |
+| SDK | Go 标准库 | `sdk/go/agentsec` 封装运行时评估和审批 API |
 | Test | Go test | 单元测试和 API 测试先行 |
 | Harness | ai-dev-harness | 管理 change、task、验证和报告 |
 
@@ -49,6 +51,7 @@ agent-security-dev/
 │   ├── policypack/             # 策略包存储与管理
 │   ├── runtime/                # 运行时评估服务
 │   └── transport/httpapi/      # HTTP API
+├── sdk/go/agentsec/            # Go Runtime SDK
 ├── docs/                       # 产品与工程文档
 ├── .harness/                   # AI Dev Harness 配置、changes、tasks、reports
 └── README.md
@@ -59,6 +62,35 @@ agent-security-dev/
 ```bash
 go test ./...
 ```
+
+SDK 局部验证：
+
+```bash
+go test ./sdk/go/agentsec
+```
+
+## Go Runtime SDK
+
+Go Agent、工具代理和网关插件可以通过 SDK 接入运行时安全控制面：
+
+```go
+client, err := agentsec.NewClient("http://127.0.0.1:8080")
+if err != nil {
+	return err
+}
+
+result, err := client.Evaluate(ctx, agentsec.RuntimeEvent{
+	TenantID:  "tenant-a",
+	AgentID:   "agent-code-001",
+	UserID:    "dev-001",
+	TaskID:    "fix-build",
+	EventType: agentsec.EventTypeToolCall,
+	ToolName:  "shell",
+	Action:    "execute",
+})
+```
+
+完整接入说明见 [docs/Go-SDK.md](docs/Go-SDK.md)。
 
 ## 本地运行
 

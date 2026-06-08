@@ -10,6 +10,7 @@ import (
 type EventType string
 
 const (
+	RuntimeEventSchemaV1             = "runtime_event.v1"
 	EventTypePrompt        EventType = "prompt"
 	EventTypeToolCall      EventType = "tool_call"
 	EventTypeFileAccess    EventType = "file_access"
@@ -46,51 +47,95 @@ func (d Decision) Priority() int {
 }
 
 type RuntimeEvent struct {
-	ID         string    `json:"event_id,omitempty"`
-	Timestamp  time.Time `json:"timestamp,omitempty"`
-	TenantID   string    `json:"tenant_id"`
-	AgentID    string    `json:"agent_id"`
-	UserID     string    `json:"user_id"`
-	TaskID     string    `json:"task_id"`
-	EventType  EventType `json:"event_type"`
-	Subject    Subject   `json:"subject,omitempty"`
-	ApprovalID string    `json:"approval_id,omitempty"`
-	ToolName   string    `json:"tool_name,omitempty"`
-	Resource   string    `json:"resource,omitempty"`
-	Action     string    `json:"action"`
-	Input      string    `json:"input,omitempty"`
-	Output     string    `json:"output,omitempty"`
-	DataLabels []string  `json:"data_labels,omitempty"`
-	Intent     string    `json:"intent,omitempty"`
+	SchemaVersion string    `json:"schema_version,omitempty"`
+	ID            string    `json:"event_id,omitempty"`
+	Timestamp     time.Time `json:"timestamp,omitempty"`
+	TenantID      string    `json:"tenant_id"`
+	AgentID       string    `json:"agent_id"`
+	UserID        string    `json:"user_id"`
+	TaskID        string    `json:"task_id"`
+	EventType     EventType `json:"event_type"`
+	Subject       Subject   `json:"subject,omitempty"`
+	ApprovalID    string    `json:"approval_id,omitempty"`
+	ToolName      string    `json:"tool_name,omitempty"`
+	Resource      string    `json:"resource,omitempty"`
+	Action        string    `json:"action"`
+	Input         string    `json:"input,omitempty"`
+	Output        string    `json:"output,omitempty"`
+	DataLabels    []string  `json:"data_labels,omitempty"`
+	Intent        string    `json:"intent,omitempty"`
+}
+
+func (e RuntimeEvent) Normalize() (RuntimeEvent, error) {
+	if strings.TrimSpace(e.SchemaVersion) == "" {
+		e.SchemaVersion = RuntimeEventSchemaV1
+	}
+	if err := e.Validate(); err != nil {
+		return RuntimeEvent{}, err
+	}
+	return e, nil
 }
 
 func (e RuntimeEvent) Validate() error {
-	var missing []string
+	var fieldErrors []FieldError
+	if strings.TrimSpace(e.SchemaVersion) != "" && e.SchemaVersion != RuntimeEventSchemaV1 {
+		fieldErrors = append(fieldErrors, FieldError{Field: "schema_version", Code: "unsupported", Message: "schema_version is unsupported"})
+	}
 	if strings.TrimSpace(e.TenantID) == "" {
-		missing = append(missing, "tenant_id")
+		fieldErrors = append(fieldErrors, FieldError{Field: "tenant_id", Code: "required", Message: "tenant_id is required"})
 	}
 	if strings.TrimSpace(e.AgentID) == "" {
-		missing = append(missing, "agent_id")
+		fieldErrors = append(fieldErrors, FieldError{Field: "agent_id", Code: "required", Message: "agent_id is required"})
 	}
 	if strings.TrimSpace(e.UserID) == "" {
-		missing = append(missing, "user_id")
+		fieldErrors = append(fieldErrors, FieldError{Field: "user_id", Code: "required", Message: "user_id is required"})
 	}
 	if strings.TrimSpace(e.TaskID) == "" {
-		missing = append(missing, "task_id")
+		fieldErrors = append(fieldErrors, FieldError{Field: "task_id", Code: "required", Message: "task_id is required"})
 	}
 	if strings.TrimSpace(string(e.EventType)) == "" {
-		missing = append(missing, "event_type")
+		fieldErrors = append(fieldErrors, FieldError{Field: "event_type", Code: "required", Message: "event_type is required"})
 	}
 	if strings.TrimSpace(e.Action) == "" {
-		missing = append(missing, "action")
+		fieldErrors = append(fieldErrors, FieldError{Field: "action", Code: "required", Message: "action is required"})
 	}
-	if len(missing) > 0 {
-		return fmt.Errorf("missing required fields: %s", strings.Join(missing, ", "))
+	if strings.TrimSpace(string(e.EventType)) != "" && !e.EventType.Valid() {
+		fieldErrors = append(fieldErrors, FieldError{Field: "event_type", Code: "unsupported", Message: fmt.Sprintf("event_type %q is unsupported", e.EventType)})
 	}
-	if !e.EventType.Valid() {
-		return fmt.Errorf("unsupported event_type %q", e.EventType)
+	if len(fieldErrors) > 0 {
+		return &ValidationError{Message: "invalid runtime event", Fields: fieldErrors}
 	}
 	return nil
+}
+
+type FieldError struct {
+	Field   string `json:"field"`
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+type ValidationError struct {
+	Message string       `json:"message"`
+	Fields  []FieldError `json:"fields"`
+}
+
+func (e *ValidationError) Error() string {
+	if e == nil || e.Message == "" {
+		return "validation failed"
+	}
+	return e.Message
+}
+
+func (e *ValidationError) HasField(field string, code string) bool {
+	if e == nil {
+		return false
+	}
+	for _, fieldError := range e.Fields {
+		if fieldError.Field == field && fieldError.Code == code {
+			return true
+		}
+	}
+	return false
 }
 
 type SubjectType string
@@ -194,3 +239,25 @@ type AuditRecord struct {
 }
 
 var ErrInvalidRuntimeEvent = errors.New("invalid runtime event")
+
+type RuntimeEventError struct {
+	Err error
+}
+
+func (e *RuntimeEventError) Error() string {
+	if e == nil || e.Err == nil {
+		return ErrInvalidRuntimeEvent.Error()
+	}
+	return fmt.Sprintf("%s: %v", ErrInvalidRuntimeEvent, e.Err)
+}
+
+func (e *RuntimeEventError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Err
+}
+
+func (e *RuntimeEventError) Is(target error) bool {
+	return target == ErrInvalidRuntimeEvent
+}

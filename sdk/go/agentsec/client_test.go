@@ -31,6 +31,9 @@ func TestClientEvaluate(t *testing.T) {
 		if event.TenantID != "tenant-a" || event.AgentID != "agent-1" || event.EventType != EventTypeToolCall {
 			t.Fatalf("unexpected event: %+v", event)
 		}
+		if event.SchemaVersion != RuntimeEventSchemaV1 {
+			t.Fatalf("schema version = %q, want %q", event.SchemaVersion, RuntimeEventSchemaV1)
+		}
 		if event.Subject.Type != SubjectTypeUser || event.Subject.RiskLevel != "medium" {
 			t.Fatalf("unexpected subject: %+v", event.Subject)
 		}
@@ -51,11 +54,12 @@ func TestClientEvaluate(t *testing.T) {
 	}
 
 	result, err := client.Evaluate(context.Background(), RuntimeEvent{
-		TenantID:  "tenant-a",
-		AgentID:   "agent-1",
-		UserID:    "user-1",
-		TaskID:    "task-1",
-		EventType: EventTypeToolCall,
+		SchemaVersion: RuntimeEventSchemaV1,
+		TenantID:      "tenant-a",
+		AgentID:       "agent-1",
+		UserID:        "user-1",
+		TaskID:        "task-1",
+		EventType:     EventTypeToolCall,
 		Subject: Subject{
 			Type:      SubjectTypeUser,
 			ID:        "user-1",

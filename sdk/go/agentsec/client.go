@@ -15,6 +15,9 @@ import (
 
 const defaultUserAgent = "agentsec-go-sdk/0.1"
 
+// RuntimeEventSchemaV1 is the current runtime event wire schema.
+const RuntimeEventSchemaV1 = "runtime_event.v1"
+
 // EventType identifies the kind of Agent runtime event being evaluated.
 type EventType string
 
@@ -88,22 +91,23 @@ type Subject struct {
 
 // RuntimeEvent is the event submitted by an Agent runtime before or after an action.
 type RuntimeEvent struct {
-	ID         string    `json:"event_id,omitempty"`
-	Timestamp  time.Time `json:"timestamp,omitempty"`
-	TenantID   string    `json:"tenant_id"`
-	AgentID    string    `json:"agent_id"`
-	UserID     string    `json:"user_id"`
-	TaskID     string    `json:"task_id"`
-	EventType  EventType `json:"event_type"`
-	Subject    Subject   `json:"subject,omitempty"`
-	ApprovalID string    `json:"approval_id,omitempty"`
-	ToolName   string    `json:"tool_name,omitempty"`
-	Resource   string    `json:"resource,omitempty"`
-	Action     string    `json:"action"`
-	Input      string    `json:"input,omitempty"`
-	Output     string    `json:"output,omitempty"`
-	DataLabels []string  `json:"data_labels,omitempty"`
-	Intent     string    `json:"intent,omitempty"`
+	SchemaVersion string    `json:"schema_version,omitempty"`
+	ID            string    `json:"event_id,omitempty"`
+	Timestamp     time.Time `json:"timestamp,omitempty"`
+	TenantID      string    `json:"tenant_id"`
+	AgentID       string    `json:"agent_id"`
+	UserID        string    `json:"user_id"`
+	TaskID        string    `json:"task_id"`
+	EventType     EventType `json:"event_type"`
+	Subject       Subject   `json:"subject,omitempty"`
+	ApprovalID    string    `json:"approval_id,omitempty"`
+	ToolName      string    `json:"tool_name,omitempty"`
+	Resource      string    `json:"resource,omitempty"`
+	Action        string    `json:"action"`
+	Input         string    `json:"input,omitempty"`
+	Output        string    `json:"output,omitempty"`
+	DataLabels    []string  `json:"data_labels,omitempty"`
+	Intent        string    `json:"intent,omitempty"`
 }
 
 // EvaluationResult is the policy decision returned for a runtime event.

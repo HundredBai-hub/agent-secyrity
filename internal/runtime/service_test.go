@@ -56,6 +56,9 @@ func TestServiceEvaluateStoresAuditRecord(t *testing.T) {
 	if len(records) != 1 {
 		t.Fatalf("len(records) = %d, want 1", len(records))
 	}
+	if records[0].Event.SchemaVersion != domain.RuntimeEventSchemaV1 {
+		t.Fatalf("audit schema_version = %q, want %q", records[0].Event.SchemaVersion, domain.RuntimeEventSchemaV1)
+	}
 }
 
 func TestServiceEvaluateCreatesApprovalRequest(t *testing.T) {

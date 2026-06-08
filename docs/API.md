@@ -50,6 +50,7 @@ Authorization: Bearer replace-with-runtime-key
 
 ```json
 {
+  "schema_version": "runtime_event.v1",
   "tenant_id": "tenant-a",
   "agent_id": "agent-code-001",
   "user_id": "dev-001",
@@ -77,6 +78,20 @@ Authorization: Bearer replace-with-runtime-key
   "reason": "secret file access is blocked",
   "matched_policy_ids": ["deny-secret-file-access"],
   "audit_id": "audit-1"
+}
+```
+
+校验失败响应：
+
+```json
+{
+  "error": "invalid_runtime_event",
+  "message": "invalid runtime event",
+  "details": {
+    "fields": [
+      {"field": "tenant_id", "code": "required", "message": "tenant_id is required"}
+    ]
+  }
 }
 ```
 
@@ -123,6 +138,7 @@ Authorization: Bearer replace-with-runtime-key
 
 | 字段 | 说明 |
 |---|---|
+| `schema_version` | Runtime Event Schema 版本；当前版本为 `runtime_event.v1`，缺省时服务端按 v1 处理 |
 | `tenant_id` | 租户 ID，必填，用于策略隔离和审计隔离 |
 | `agent_id` | Agent 身份 |
 | `user_id` | 发起用户 |

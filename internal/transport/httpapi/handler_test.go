@@ -127,6 +127,48 @@ func TestHandlerAPIKeyAuthentication(t *testing.T) {
 	allowedResp.Body.Close()
 }
 
+func TestHandlerEvaluateReturnsValidationDetails(t *testing.T) {
+	store := audit.NewMemoryStore()
+	service := runtimeSvc.NewService(policy.NewEngine(nil), store)
+	server := httptest.NewServer(NewRouter(service, store))
+	defer server.Close()
+
+	resp, err := http.Post(server.URL+"/v1/evaluate", "application/json", bytes.NewBufferString(`{
+		"schema_version":"runtime_event.v9",
+		"event_type":"unsupported"
+	}`))
+	if err != nil {
+		t.Fatalf("Post() error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("StatusCode = %d, want 422", resp.StatusCode)
+	}
+
+	var payload struct {
+		Error   string `json:"error"`
+		Message string `json:"message"`
+		Details struct {
+			Fields []domain.FieldError `json:"fields"`
+		} `json:"details"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if payload.Error != "invalid_runtime_event" {
+		t.Fatalf("error = %q, want invalid_runtime_event", payload.Error)
+	}
+	if len(payload.Details.Fields) == 0 {
+		t.Fatalf("details.fields is empty")
+	}
+	if !hasFieldError(payload.Details.Fields, "schema_version", "unsupported") {
+		t.Fatalf("missing schema_version unsupported error: %+v", payload.Details.Fields)
+	}
+	if !hasFieldError(payload.Details.Fields, "tenant_id", "required") {
+		t.Fatalf("missing tenant_id required error: %+v", payload.Details.Fields)
+	}
+}
+
 func TestHandlerManagesApprovals(t *testing.T) {
 	auditStore := audit.NewMemoryStore()
 	approvalStore := approval.NewMemoryStore()
@@ -200,6 +242,15 @@ func TestHandlerManagesApprovals(t *testing.T) {
 	if otherTenantResp.StatusCode != http.StatusNotFound {
 		t.Fatalf("StatusCode = %d, want 404 for other tenant", otherTenantResp.StatusCode)
 	}
+}
+
+func hasFieldError(fields []domain.FieldError, field string, code string) bool {
+	for _, fieldError := range fields {
+		if fieldError.Field == field && fieldError.Code == code {
+			return true
+		}
+	}
+	return false
 }
 
 func postEvaluate(t *testing.T, serverURL string, apiKey string, tenantID string) *http.Response {

@@ -43,11 +43,12 @@ Agent 在执行工具、访问文件、访问网络或输出响应前，可以�
 
 ```go
 result, err := client.Evaluate(ctx, agentsec.RuntimeEvent{
-	TenantID:  "tenant-a",
-	AgentID:   "agent-code-001",
-	UserID:    "dev-001",
-	TaskID:    "fix-build",
-	EventType: agentsec.EventTypeToolCall,
+	SchemaVersion: agentsec.RuntimeEventSchemaV1,
+	TenantID:      "tenant-a",
+	AgentID:       "agent-code-001",
+	UserID:        "dev-001",
+	TaskID:        "fix-build",
+	EventType:     agentsec.EventTypeToolCall,
 	Subject: agentsec.Subject{
 		Type:      agentsec.SubjectTypeUser,
 		ID:        "dev-001",
@@ -81,14 +82,15 @@ case result.Denied():
 
 ```go
 event := agentsec.RuntimeEvent{
-	TenantID:  "tenant-a",
-	AgentID:   "agent-code-001",
-	UserID:    "dev-001",
-	TaskID:    "fix-build",
-	EventType: agentsec.EventTypeToolCall,
-	ToolName:  "shell",
-	Resource:  "/repo/.env",
-	Action:    "read",
+	SchemaVersion: agentsec.RuntimeEventSchemaV1,
+	TenantID:      "tenant-a",
+	AgentID:       "agent-code-001",
+	UserID:        "dev-001",
+	TaskID:        "fix-build",
+	EventType:     agentsec.EventTypeToolCall,
+	ToolName:      "shell",
+	Resource:      "/repo/.env",
+	Action:        "read",
 }
 
 first, err := client.Evaluate(ctx, event)

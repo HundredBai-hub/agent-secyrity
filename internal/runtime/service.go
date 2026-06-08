@@ -49,9 +49,11 @@ func NewServiceWithOptions(opts Options) *Service {
 }
 
 func (s *Service) Evaluate(ctx context.Context, event domain.RuntimeEvent) (domain.EvaluationResult, error) {
-	if err := event.Validate(); err != nil {
-		return domain.EvaluationResult{}, fmt.Errorf("%w: %v", domain.ErrInvalidRuntimeEvent, err)
+	normalized, err := event.Normalize()
+	if err != nil {
+		return domain.EvaluationResult{}, &domain.RuntimeEventError{Err: err}
 	}
+	event = normalized
 	if event.Timestamp.IsZero() {
 		event.Timestamp = time.Now().UTC()
 	}

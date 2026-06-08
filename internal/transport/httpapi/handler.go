@@ -91,9 +91,14 @@ func (h *Handler) evaluate(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		status := http.StatusInternalServerError
 		code := "evaluation_failed"
+		var validationErr *domain.ValidationError
 		if errors.Is(err, domain.ErrInvalidRuntimeEvent) {
-			status = http.StatusBadRequest
+			status = http.StatusUnprocessableEntity
 			code = "invalid_runtime_event"
+		}
+		if errors.As(err, &validationErr) {
+			writeErrorWithDetails(w, status, code, validationErr.Message, map[string][]domain.FieldError{"fields": validationErr.Fields})
+			return
 		}
 		writeError(w, status, code, err.Error())
 		return
@@ -339,5 +344,13 @@ func writeError(w http.ResponseWriter, status int, code string, message string) 
 	writeJSON(w, status, map[string]string{
 		"error":   code,
 		"message": message,
+	})
+}
+
+func writeErrorWithDetails(w http.ResponseWriter, status int, code string, message string, details any) {
+	writeJSON(w, status, map[string]any{
+		"error":   code,
+		"message": message,
+		"details": details,
 	})
 }

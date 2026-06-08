@@ -16,7 +16,7 @@
 
 | 顺序 | Change ID | 状态 | 目标 | 验收命令 |
 |---:|---|---|---|---|
-| 1 | `runtime-event-schema` | todo | 固化 Runtime Event Schema、字段版本、校验错误和兼容策略 | `go test ./internal/domain ./internal/transport/httpapi ./sdk/go/agentsec` |
+| 1 | `runtime-event-schema` | done | 固化 Runtime Event Schema、字段版本、校验错误和兼容策略 | `go test ./internal/domain ./internal/transport/httpapi ./sdk/go/agentsec` |
 | 2 | `policy-simulator` | todo | 支持策略包 dry-run / simulate，用于上线前验证策略命中和误拦截 | `go test ./internal/policy ./internal/transport/httpapi` |
 | 3 | `baseline-policy-packs` | todo | 提供内置高频场景策略包：代码仓库、客服、财务审批、数据分析 | `go test ./internal/policypack ./internal/runtime` |
 | 4 | `audit-query-api` | todo | 增强审计查询过滤、分页、按 Agent / User / Task / Decision 检索 | `go test ./internal/audit ./internal/storage/postgres ./internal/transport/httpapi` |
@@ -47,7 +47,7 @@
 
 ## 当前执行指针
 
-下一项：`runtime-event-schema`
+下一项：`policy-simulator`
 
 ## 单任务执行模板
 

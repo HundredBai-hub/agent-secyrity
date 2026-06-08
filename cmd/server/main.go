@@ -12,7 +12,7 @@ import (
 
 	"github.com/HundredBai-hub/agent-secyrity/internal/audit"
 	"github.com/HundredBai-hub/agent-secyrity/internal/domain"
-	"github.com/HundredBai-hub/agent-secyrity/internal/policy"
+	"github.com/HundredBai-hub/agent-secyrity/internal/policypack"
 	runtimeSvc "github.com/HundredBai-hub/agent-secyrity/internal/runtime"
 	"github.com/HundredBai-hub/agent-secyrity/internal/transport/httpapi"
 )
@@ -20,11 +20,15 @@ import (
 func main() {
 	addr := getenv("ADDR", ":8080")
 	store := audit.NewMemoryStore()
-	engine := policy.NewEngine(defaultPolicies())
-	service := runtimeSvc.NewService(engine, store)
+	packStore := policypack.NewMemoryStore()
+	if err := packStore.Upsert(context.Background(), defaultPolicyPack()); err != nil {
+		slog.Error("seed default policy pack failed", "error", err)
+		os.Exit(1)
+	}
+	service := runtimeSvc.NewServiceWithPolicyPacks(packStore, store)
 	server := &http.Server{
 		Addr:              addr,
-		Handler:           httpapi.NewRouter(service, store),
+		Handler:           httpapi.NewRouterWithPolicyPacks(service, store, packStore),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
@@ -56,48 +60,55 @@ func getenv(key string, fallback string) string {
 	return value
 }
 
-func defaultPolicies() []domain.Policy {
-	return []domain.Policy{
-		{
-			ID:       "deny-secret-file-access",
-			TenantID: "default",
-			Name:     "Deny secret file access",
-			Enabled:  true,
-			Priority: 100,
-			Conditions: domain.PolicyConditions{
-				EventTypes: []domain.EventType{domain.EventTypeFileAccess},
-				Resources:  []string{".env", "id_rsa", "id_ed25519", ".ssh/"},
-				DataLabels: []string{"secret"},
+func defaultPolicyPack() domain.PolicyPack {
+	return domain.PolicyPack{
+		ID:       "default-runtime",
+		TenantID: "default",
+		Name:     "Default Runtime",
+		Version:  "1.0.0",
+		Enabled:  true,
+		Policies: []domain.Policy{
+			{
+				ID:       "deny-secret-file-access",
+				TenantID: "default",
+				Name:     "Deny secret file access",
+				Enabled:  true,
+				Priority: 100,
+				Conditions: domain.PolicyConditions{
+					EventTypes: []domain.EventType{domain.EventTypeFileAccess},
+					Resources:  []string{".env", "id_rsa", "id_ed25519", ".ssh/"},
+					DataLabels: []string{"secret"},
+				},
+				Decision: domain.DecisionDeny,
+				Reason:   "secret file access is blocked",
 			},
-			Decision: domain.DecisionDeny,
-			Reason:   "secret file access is blocked",
-		},
-		{
-			ID:       "require-approval-dangerous-tool",
-			TenantID: "default",
-			Name:     "Require approval for dangerous tools",
-			Enabled:  true,
-			Priority: 90,
-			Conditions: domain.PolicyConditions{
-				EventTypes: []domain.EventType{domain.EventTypeToolCall},
-				ToolNames:  []string{"shell", "exec", "terminal"},
-				Actions:    []string{"execute"},
+			{
+				ID:       "require-approval-dangerous-tool",
+				TenantID: "default",
+				Name:     "Require approval for dangerous tools",
+				Enabled:  true,
+				Priority: 90,
+				Conditions: domain.PolicyConditions{
+					EventTypes: []domain.EventType{domain.EventTypeToolCall},
+					ToolNames:  []string{"shell", "exec", "terminal"},
+					Actions:    []string{"execute"},
+				},
+				Decision: domain.DecisionRequireApproval,
+				Reason:   "dangerous tool execution requires approval",
 			},
-			Decision: domain.DecisionRequireApproval,
-			Reason:   "dangerous tool execution requires approval",
-		},
-		{
-			ID:       "redact-sensitive-response",
-			TenantID: "default",
-			Name:     "Redact sensitive responses",
-			Enabled:  true,
-			Priority: 80,
-			Conditions: domain.PolicyConditions{
-				EventTypes: []domain.EventType{domain.EventTypeResponse},
-				DataLabels: []string{"pii", "secret", "customer_data"},
+			{
+				ID:       "redact-sensitive-response",
+				TenantID: "default",
+				Name:     "Redact sensitive responses",
+				Enabled:  true,
+				Priority: 80,
+				Conditions: domain.PolicyConditions{
+					EventTypes: []domain.EventType{domain.EventTypeResponse},
+					DataLabels: []string{"pii", "secret", "customer_data"},
+				},
+				Decision: domain.DecisionRedact,
+				Reason:   "sensitive response must be redacted",
 			},
-			Decision: domain.DecisionRedact,
-			Reason:   "sensitive response must be redacted",
 		},
 	}
 }

@@ -100,3 +100,46 @@
 | `resource` | 文件、URL、API、数据库表等资源 |
 | `action` | read / write / execute 等动作 |
 | `data_labels` | pii、secret、customer_data、source_code 等数据标签 |
+
+## Policy Pack 管理
+
+### `PUT /v1/tenants/{tenant_id}/policy-packs/{pack_id}`
+
+创建或更新策略包。路径中的 `tenant_id` 和 `pack_id` 优先，服务端会覆盖请求体中的同名字段，避免跨租户写入。
+
+```json
+{
+  "name": "Default Runtime",
+  "version": "1.0.0",
+  "enabled": true,
+  "policies": [
+    {
+      "id": "deny-shell",
+      "enabled": true,
+      "priority": 100,
+      "conditions": {
+        "event_types": ["tool_call"],
+        "tool_names": ["shell"]
+      },
+      "decision": "deny",
+      "reason": "shell is blocked"
+    }
+  ]
+}
+```
+
+### `GET /v1/tenants/{tenant_id}/policy-packs`
+
+列出租户策略包。
+
+### `GET /v1/tenants/{tenant_id}/policy-packs/{pack_id}`
+
+查询单个策略包。不存在返回 404。
+
+### `PATCH /v1/tenants/{tenant_id}/policy-packs/{pack_id}/enabled`
+
+启用或禁用策略包。禁用后，运行时评估不会加载该策略包。
+
+```json
+{"enabled": false}
+```

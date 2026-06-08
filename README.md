@@ -13,6 +13,7 @@ Agent Security Platform 是面向企业 AI Agent 运行时安全的生产级工�
 - 企业级隔离：按 `tenant_id` 隔离事件、策略和审计记录。
 - 主体身份治理：用结构化 `subject` 表达用户、Agent、服务账号和工作流身份。
 - 策略包治理：用 Policy Pack 承载策略集合、版本和启用状态。
+- 策略运营 API：支持按租户创建、查询、列出、启停策略包。
 - 支撑生产落地：稳定 API、明确模块边界、可测试、可审计、可扩展。
 
 ## 工程约束
@@ -43,6 +44,7 @@ agent-security-dev/
 │   ├── audit/                  # 审计记录与存储接口
 │   ├── domain/                 # 运行时事件、策略、决策领域模型
 │   ├── policy/                 # 策略评估引擎
+│   ├── policypack/             # 策略包存储与管理
 │   ├── runtime/                # 运行时评估服务
 │   └── transport/httpapi/      # HTTP API
 ├── docs/                       # 产品与工程文档

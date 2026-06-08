@@ -159,6 +159,30 @@ type EvaluationResult struct {
 	Reason           string   `json:"reason"`
 	MatchedPolicyIDs []string `json:"matched_policy_ids"`
 	AuditID          string   `json:"audit_id,omitempty"`
+	ApprovalID       string   `json:"approval_id,omitempty"`
+}
+
+type ApprovalStatus string
+
+const (
+	ApprovalStatusPending  ApprovalStatus = "pending"
+	ApprovalStatusApproved ApprovalStatus = "approved"
+	ApprovalStatusRejected ApprovalStatus = "rejected"
+	ApprovalStatusExpired  ApprovalStatus = "expired"
+)
+
+type ApprovalRequest struct {
+	ID             string           `json:"id"`
+	TenantID       string           `json:"tenant_id"`
+	Status         ApprovalStatus   `json:"status"`
+	Event          RuntimeEvent     `json:"event"`
+	Result         EvaluationResult `json:"result"`
+	Reason         string           `json:"reason,omitempty"`
+	RequestedAt    time.Time        `json:"requested_at"`
+	ExpiresAt      time.Time        `json:"expires_at"`
+	DecidedAt      time.Time        `json:"decided_at,omitempty"`
+	DecidedBy      string           `json:"decided_by,omitempty"`
+	DecisionReason string           `json:"decision_reason,omitempty"`
 }
 
 type AuditRecord struct {

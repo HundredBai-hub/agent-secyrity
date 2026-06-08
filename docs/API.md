@@ -143,3 +143,44 @@
 ```json
 {"enabled": false}
 ```
+
+## Approval Workflow
+
+当评估结果为 `require_approval` 时，响应会包含 `approval_id`：
+
+```json
+{
+  "decision": "require_approval",
+  "reason": "dangerous tool execution requires approval",
+  "matched_policy_ids": ["require-approval-dangerous-tool"],
+  "audit_id": "audit-1",
+  "approval_id": "approval-1"
+}
+```
+
+### `GET /v1/tenants/{tenant_id}/approvals`
+
+列出租户审批单。
+
+### `GET /v1/tenants/{tenant_id}/approvals/{approval_id}`
+
+查询单个审批单。跨租户查询返回 404。
+
+### `POST /v1/tenants/{tenant_id}/approvals/{approval_id}/decide`
+
+审批通过或拒绝。
+
+```json
+{
+  "decision": "approved",
+  "decided_by": "secops-001",
+  "reason": "approved for incident response"
+}
+```
+
+`decision` 支持：
+
+| 值 | 说明 |
+|---|---|
+| `approved` | 审批通过 |
+| `rejected` | 审批拒绝 |

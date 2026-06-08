@@ -25,6 +25,7 @@ migrations/postgres/001_init.sql
 |---|---|
 | `audit_records` | 保存完整审计记录 JSONB，并冗余 tenant、event_type、decision、recorded_at |
 | `policy_packs` | 保存完整策略包 JSONB，并冗余 tenant、enabled、version、updated_at |
+| `approval_requests` | 保存完整审批单 JSONB，并冗余 tenant、status、requested_at、expires_at |
 
 ## 集成测试
 

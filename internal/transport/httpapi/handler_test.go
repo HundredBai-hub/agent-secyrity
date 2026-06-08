@@ -7,7 +7,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
+	"github.com/HundredBai-hub/agent-secyrity/internal/approval"
 	"github.com/HundredBai-hub/agent-secyrity/internal/audit"
 	"github.com/HundredBai-hub/agent-secyrity/internal/domain"
 	"github.com/HundredBai-hub/agent-secyrity/internal/policy"
@@ -79,6 +81,81 @@ func TestHandlerEvaluateAndListAuditEvents(t *testing.T) {
 	}
 	if len(payload.Events) != 1 {
 		t.Fatalf("len(events) = %d, want 1", len(payload.Events))
+	}
+}
+
+func TestHandlerManagesApprovals(t *testing.T) {
+	auditStore := audit.NewMemoryStore()
+	approvalStore := approval.NewMemoryStore()
+	request, err := approvalStore.Create(context.Background(), domain.ApprovalRequest{
+		TenantID: "tenant-a",
+		Event: domain.RuntimeEvent{
+			TenantID:  "tenant-a",
+			AgentID:   "agent-code-001",
+			UserID:    "user-001",
+			TaskID:    "task-001",
+			EventType: domain.EventTypeToolCall,
+			ToolName:  "shell",
+			Action:    "execute",
+		},
+		Result:    domain.EvaluationResult{Decision: domain.DecisionRequireApproval},
+		Reason:    "dangerous tool execution requires approval",
+		ExpiresAt: time.Now().Add(time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	service := runtimeSvc.NewServiceWithOptions(runtimeSvc.Options{
+		Engine:        policy.NewEngine(nil),
+		AuditStore:    auditStore,
+		ApprovalStore: approvalStore,
+		ApprovalTTL:   time.Hour,
+	})
+	server := httptest.NewServer(NewRouterWithStores(service, auditStore, nil, approvalStore))
+	defer server.Close()
+
+	listResp, err := http.Get(server.URL + "/v1/tenants/tenant-a/approvals")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer listResp.Body.Close()
+	if listResp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want 200", listResp.StatusCode)
+	}
+	var listPayload struct {
+		Approvals []domain.ApprovalRequest `json:"approvals"`
+	}
+	if err := json.NewDecoder(listResp.Body).Decode(&listPayload); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if len(listPayload.Approvals) != 1 {
+		t.Fatalf("len(approvals) = %d, want 1", len(listPayload.Approvals))
+	}
+
+	decisionBody := bytes.NewBufferString(`{"decision":"approved","decided_by":"secops-001","reason":"approved for incident response"}`)
+	decideResp, err := http.Post(server.URL+"/v1/tenants/tenant-a/approvals/"+request.ID+"/decide", "application/json", decisionBody)
+	if err != nil {
+		t.Fatalf("Post() error = %v", err)
+	}
+	defer decideResp.Body.Close()
+	if decideResp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want 200", decideResp.StatusCode)
+	}
+	var decided domain.ApprovalRequest
+	if err := json.NewDecoder(decideResp.Body).Decode(&decided); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if decided.Status != domain.ApprovalStatusApproved {
+		t.Fatalf("Status = %s, want approved", decided.Status)
+	}
+
+	otherTenantResp, err := http.Get(server.URL + "/v1/tenants/tenant-b/approvals/" + request.ID)
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer otherTenantResp.Body.Close()
+	if otherTenantResp.StatusCode != http.StatusNotFound {
+		t.Fatalf("StatusCode = %d, want 404 for other tenant", otherTenantResp.StatusCode)
 	}
 }
 

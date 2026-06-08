@@ -3,7 +3,9 @@ package runtime
 import (
 	"context"
 	"testing"
+	"time"
 
+	"github.com/HundredBai-hub/agent-secyrity/internal/approval"
 	"github.com/HundredBai-hub/agent-secyrity/internal/audit"
 	"github.com/HundredBai-hub/agent-secyrity/internal/domain"
 	"github.com/HundredBai-hub/agent-secyrity/internal/policy"
@@ -53,6 +55,56 @@ func TestServiceEvaluateStoresAuditRecord(t *testing.T) {
 	}
 	if len(records) != 1 {
 		t.Fatalf("len(records) = %d, want 1", len(records))
+	}
+}
+
+func TestServiceEvaluateCreatesApprovalRequest(t *testing.T) {
+	approvalStore := approval.NewMemoryStore()
+	service := NewServiceWithOptions(Options{
+		Engine: policy.NewEngine([]domain.Policy{
+			{
+				ID:       "require-approval-dangerous-tool",
+				TenantID: "tenant-a",
+				Enabled:  true,
+				Priority: 100,
+				Conditions: domain.PolicyConditions{
+					EventTypes: []domain.EventType{domain.EventTypeToolCall},
+					ToolNames:  []string{"shell"},
+					Actions:    []string{"execute"},
+				},
+				Decision: domain.DecisionRequireApproval,
+				Reason:   "dangerous tool execution requires approval",
+			},
+		}),
+		AuditStore:    audit.NewMemoryStore(),
+		ApprovalStore: approvalStore,
+		ApprovalTTL:   time.Hour,
+	})
+
+	result, err := service.Evaluate(context.Background(), domain.RuntimeEvent{
+		TenantID:  "tenant-a",
+		AgentID:   "agent-code-001",
+		UserID:    "user-001",
+		TaskID:    "task-001",
+		EventType: domain.EventTypeToolCall,
+		ToolName:  "shell",
+		Action:    "execute",
+	})
+	if err != nil {
+		t.Fatalf("Evaluate() error = %v", err)
+	}
+	if result.Decision != domain.DecisionRequireApproval {
+		t.Fatalf("Decision = %s, want require_approval", result.Decision)
+	}
+	if result.ApprovalID == "" {
+		t.Fatal("ApprovalID is empty")
+	}
+	request, err := approvalStore.Get(context.Background(), "tenant-a", result.ApprovalID)
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if request.Status != domain.ApprovalStatusPending {
+		t.Fatalf("Status = %s, want pending", request.Status)
 	}
 }
 

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/HundredBai-hub/agent-secyrity/internal/approval"
 	"github.com/HundredBai-hub/agent-secyrity/internal/audit"
 	"github.com/HundredBai-hub/agent-secyrity/internal/domain"
 	"github.com/HundredBai-hub/agent-secyrity/internal/policypack"
@@ -13,9 +14,10 @@ import (
 )
 
 type Handler struct {
-	service   *runtimeSvc.Service
-	store     audit.Store
-	packStore policypack.Store
+	service       *runtimeSvc.Service
+	store         audit.Store
+	packStore     policypack.Store
+	approvalStore approval.Store
 }
 
 func NewRouter(service *runtimeSvc.Service, store audit.Store) http.Handler {
@@ -28,6 +30,11 @@ func NewRouterWithPolicyPacks(service *runtimeSvc.Service, store audit.Store, pa
 	return handler.router()
 }
 
+func NewRouterWithStores(service *runtimeSvc.Service, store audit.Store, packStore policypack.Store, approvalStore approval.Store) http.Handler {
+	handler := &Handler{service: service, store: store, packStore: packStore, approvalStore: approvalStore}
+	return handler.router()
+}
+
 func (h *Handler) router() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", h.healthz)
@@ -37,6 +44,9 @@ func (h *Handler) router() http.Handler {
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/policy-packs", h.listPolicyPacks)
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/policy-packs/{pack_id}", h.getPolicyPack)
 	mux.HandleFunc("PATCH /v1/tenants/{tenant_id}/policy-packs/{pack_id}/enabled", h.setPolicyPackEnabled)
+	mux.HandleFunc("GET /v1/tenants/{tenant_id}/approvals", h.listApprovals)
+	mux.HandleFunc("GET /v1/tenants/{tenant_id}/approvals/{approval_id}", h.getApproval)
+	mux.HandleFunc("POST /v1/tenants/{tenant_id}/approvals/{approval_id}/decide", h.decideApproval)
 	return mux
 }
 
@@ -165,6 +175,70 @@ func (h *Handler) setPolicyPackEnabled(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, pack)
+}
+
+func (h *Handler) listApprovals(w http.ResponseWriter, r *http.Request) {
+	if h.approvalStore == nil {
+		writeError(w, http.StatusNotImplemented, "approval_store_disabled", "approval store is not configured")
+		return
+	}
+	approvals, err := h.approvalStore.List(r.Context(), r.PathValue("tenant_id"), approval.ListOptions{Limit: 100})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "approval_list_failed", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string][]domain.ApprovalRequest{"approvals": approvals})
+}
+
+func (h *Handler) getApproval(w http.ResponseWriter, r *http.Request) {
+	if h.approvalStore == nil {
+		writeError(w, http.StatusNotImplemented, "approval_store_disabled", "approval store is not configured")
+		return
+	}
+	request, err := h.approvalStore.Get(r.Context(), r.PathValue("tenant_id"), r.PathValue("approval_id"))
+	if err != nil {
+		status := http.StatusInternalServerError
+		if errors.Is(err, approval.ErrNotFound) {
+			status = http.StatusNotFound
+		}
+		writeError(w, status, "approval_get_failed", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, request)
+}
+
+func (h *Handler) decideApproval(w http.ResponseWriter, r *http.Request) {
+	if h.approvalStore == nil {
+		writeError(w, http.StatusNotImplemented, "approval_store_disabled", "approval store is not configured")
+		return
+	}
+	defer r.Body.Close()
+	var payload struct {
+		Decision  domain.ApprovalStatus `json:"decision"`
+		DecidedBy string                `json:"decided_by"`
+		Reason    string                `json:"reason"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	request, err := h.approvalStore.Decide(r.Context(), r.PathValue("tenant_id"), r.PathValue("approval_id"), approval.DecisionInput{
+		Status:    payload.Decision,
+		DecidedBy: payload.DecidedBy,
+		Reason:    payload.Reason,
+	})
+	if err != nil {
+		status := http.StatusInternalServerError
+		if errors.Is(err, approval.ErrNotFound) {
+			status = http.StatusNotFound
+		}
+		if errors.Is(err, approval.ErrApprovalExpired) || errors.Is(err, approval.ErrApprovalAlreadyDecided) || errors.Is(err, approval.ErrInvalidDecision) {
+			status = http.StatusConflict
+		}
+		writeError(w, status, "approval_decide_failed", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, request)
 }
 
 func writeJSON(w http.ResponseWriter, status int, payload any) {

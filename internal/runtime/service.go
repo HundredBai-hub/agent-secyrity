@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/HundredBai-hub/agent-secyrity/internal/approval"
 	"github.com/HundredBai-hub/agent-secyrity/internal/audit"
 	"github.com/HundredBai-hub/agent-secyrity/internal/domain"
 	"github.com/HundredBai-hub/agent-secyrity/internal/policy"
@@ -12,9 +13,19 @@ import (
 )
 
 type Service struct {
-	engine    *policy.Engine
-	packStore policypack.Store
-	store     audit.Store
+	engine        *policy.Engine
+	packStore     policypack.Store
+	store         audit.Store
+	approvalStore approval.Store
+	approvalTTL   time.Duration
+}
+
+type Options struct {
+	Engine        *policy.Engine
+	PolicyPacks   policypack.Store
+	AuditStore    audit.Store
+	ApprovalStore approval.Store
+	ApprovalTTL   time.Duration
 }
 
 func NewService(engine *policy.Engine, store audit.Store) *Service {
@@ -23,6 +34,16 @@ func NewService(engine *policy.Engine, store audit.Store) *Service {
 
 func NewServiceWithPolicyPacks(packStore policypack.Store, store audit.Store) *Service {
 	return &Service{packStore: packStore, store: store}
+}
+
+func NewServiceWithOptions(opts Options) *Service {
+	return &Service{
+		engine:        opts.Engine,
+		packStore:     opts.PolicyPacks,
+		store:         opts.AuditStore,
+		approvalStore: opts.ApprovalStore,
+		approvalTTL:   opts.ApprovalTTL,
+	}
 }
 
 func (s *Service) Evaluate(ctx context.Context, event domain.RuntimeEvent) (domain.EvaluationResult, error) {
@@ -44,6 +65,23 @@ func (s *Service) Evaluate(ctx context.Context, event domain.RuntimeEvent) (doma
 		engine = policy.NewEngine(nil)
 	}
 	result := engine.Evaluate(event)
+	if result.Decision == domain.DecisionRequireApproval && s.approvalStore != nil {
+		ttl := s.approvalTTL
+		if ttl <= 0 {
+			ttl = 15 * time.Minute
+		}
+		request, err := s.approvalStore.Create(ctx, domain.ApprovalRequest{
+			TenantID:  event.TenantID,
+			Event:     event,
+			Result:    result,
+			Reason:    result.Reason,
+			ExpiresAt: time.Now().UTC().Add(ttl),
+		})
+		if err != nil {
+			return domain.EvaluationResult{}, fmt.Errorf("create approval request: %w", err)
+		}
+		result.ApprovalID = request.ID
+	}
 	record, err := s.store.Append(ctx, domain.AuditRecord{
 		Event:  event,
 		Result: result,

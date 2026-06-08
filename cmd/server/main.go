@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/HundredBai-hub/agent-secyrity/internal/approval"
 	"github.com/HundredBai-hub/agent-secyrity/internal/audit"
 	"github.com/HundredBai-hub/agent-secyrity/internal/domain"
 	"github.com/HundredBai-hub/agent-secyrity/internal/policypack"
@@ -20,16 +21,21 @@ import (
 
 func main() {
 	addr := getenv("ADDR", ":8080")
-	store, packStore, closeStores := initStores(context.Background())
-	defer closeStores()
-	if err := packStore.Upsert(context.Background(), defaultPolicyPack()); err != nil {
+	stores := initStores(context.Background())
+	defer stores.Close()
+	if err := stores.PolicyPacks.Upsert(context.Background(), defaultPolicyPack()); err != nil {
 		slog.Error("seed default policy pack failed", "error", err)
 		os.Exit(1)
 	}
-	service := runtimeSvc.NewServiceWithPolicyPacks(packStore, store)
+	service := runtimeSvc.NewServiceWithOptions(runtimeSvc.Options{
+		PolicyPacks:   stores.PolicyPacks,
+		AuditStore:    stores.Audit,
+		ApprovalStore: stores.Approvals,
+		ApprovalTTL:   15 * time.Minute,
+	})
 	server := &http.Server{
 		Addr:              addr,
-		Handler:           httpapi.NewRouterWithPolicyPacks(service, store, packStore),
+		Handler:           httpapi.NewRouterWithStores(service, stores.Audit, stores.PolicyPacks, stores.Approvals),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
@@ -53,10 +59,22 @@ func main() {
 	}
 }
 
-func initStores(ctx context.Context) (audit.Store, policypack.Store, func()) {
+type stores struct {
+	Audit       audit.Store
+	PolicyPacks policypack.Store
+	Approvals   approval.Store
+	Close       func()
+}
+
+func initStores(ctx context.Context) stores {
 	dsn := os.Getenv("DATABASE_URL")
 	if dsn == "" {
-		return audit.NewMemoryStore(), policypack.NewMemoryStore(), func() {}
+		return stores{
+			Audit:       audit.NewMemoryStore(),
+			PolicyPacks: policypack.NewMemoryStore(),
+			Approvals:   approval.NewMemoryStore(),
+			Close:       func() {},
+		}
 	}
 	db, err := postgresStore.Open(ctx, dsn)
 	if err != nil {
@@ -68,10 +86,15 @@ func initStores(ctx context.Context) (audit.Store, policypack.Store, func()) {
 		slog.Error("migrate postgres failed", "error", err)
 		os.Exit(1)
 	}
-	return postgresStore.NewAuditStore(db), postgresStore.NewPolicyPackStore(db), func() {
-		if err := db.Close(); err != nil {
-			slog.Error("close postgres failed", "error", err)
-		}
+	return stores{
+		Audit:       postgresStore.NewAuditStore(db),
+		PolicyPacks: postgresStore.NewPolicyPackStore(db),
+		Approvals:   postgresStore.NewApprovalStore(db),
+		Close: func() {
+			if err := db.Close(); err != nil {
+				slog.Error("close postgres failed", "error", err)
+			}
+		},
 	}
 }
 

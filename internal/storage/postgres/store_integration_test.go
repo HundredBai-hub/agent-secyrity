@@ -4,7 +4,9 @@ import (
 	"context"
 	"os"
 	"testing"
+	"time"
 
+	"github.com/HundredBai-hub/agent-secyrity/internal/approval"
 	"github.com/HundredBai-hub/agent-secyrity/internal/audit"
 	"github.com/HundredBai-hub/agent-secyrity/internal/domain"
 	"github.com/HundredBai-hub/agent-secyrity/internal/policypack"
@@ -84,5 +86,46 @@ func TestIntegrationStoresAuditAndPolicyPacks(t *testing.T) {
 		t.Fatal("Get() error = nil, want tenant isolation not found")
 	} else if err != policypack.ErrNotFound {
 		t.Fatalf("Get() error = %v, want ErrNotFound", err)
+	}
+
+	approvalStore := NewApprovalStore(db)
+	approvalRequest, err := approvalStore.Create(ctx, domain.ApprovalRequest{
+		TenantID:  "tenant-pg",
+		Event:     minimalEvent("tenant-pg"),
+		Result:    domain.EvaluationResult{Decision: domain.DecisionRequireApproval},
+		Reason:    "dangerous tool execution requires approval",
+		ExpiresAt: time.Now().Add(time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	decided, err := approvalStore.Decide(ctx, "tenant-pg", approvalRequest.ID, approval.DecisionInput{
+		Status:    domain.ApprovalStatusApproved,
+		DecidedBy: "secops-001",
+		Reason:    "approved",
+		Now:       time.Now(),
+	})
+	if err != nil {
+		t.Fatalf("Decide() error = %v", err)
+	}
+	if decided.Status != domain.ApprovalStatusApproved {
+		t.Fatalf("Status = %s, want approved", decided.Status)
+	}
+	if _, err := approvalStore.Get(ctx, "tenant-other", approvalRequest.ID); err == nil {
+		t.Fatal("Get() error = nil, want tenant isolation not found")
+	} else if err != approval.ErrNotFound {
+		t.Fatalf("Get() error = %v, want ErrNotFound", err)
+	}
+}
+
+func minimalEvent(tenantID string) domain.RuntimeEvent {
+	return domain.RuntimeEvent{
+		TenantID:  tenantID,
+		AgentID:   "agent-code-001",
+		UserID:    "user-001",
+		TaskID:    "task-001",
+		EventType: domain.EventTypeToolCall,
+		ToolName:  "shell",
+		Action:    "execute",
 	}
 }

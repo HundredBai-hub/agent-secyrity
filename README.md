@@ -125,3 +125,9 @@ go run ./cmd/server
 ```text
 .harness/changes/production-foundation/
 ```
+
+后续开发默认按项目级任务池持续推进：
+
+- [docs/ROADMAP.md](docs/ROADMAP.md)：产品和工程阶段路线。
+- [docs/EXECUTION-BACKLOG.md](docs/EXECUTION-BACKLOG.md)：可执行任务池、优先级、状态和当前执行指针。
+- [docs/HARNESS-EXECUTION-LOOP.md](docs/HARNESS-EXECUTION-LOOP.md)：harness 自动执行循环规则。

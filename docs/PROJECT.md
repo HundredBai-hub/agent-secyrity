@@ -24,6 +24,9 @@ Agent Security Platform 是面向企业 AI Agent 运行时安全的控制面与�
 |---|---|
 | [API.md](API.md) | HTTP API、运行时事件、策略包和审批流接口 |
 | [Go-SDK.md](Go-SDK.md) | Go Runtime SDK 接入说明和示例 |
+| [ROADMAP.md](ROADMAP.md) | 产品和工程阶段路线 |
+| [EXECUTION-BACKLOG.md](EXECUTION-BACKLOG.md) | 后续开发任务池、优先级、状态和当前执行指针 |
+| [HARNESS-EXECUTION-LOOP.md](HARNESS-EXECUTION-LOOP.md) | harness 自动执行循环规则 |
 | [PostgreSQL.md](PostgreSQL.md) | PostgreSQL 本地配置、迁移和验证方式 |
 | [项目启动.md](项目启动.md) | 项目启动背景和阶段目标 |
 

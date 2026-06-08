@@ -1,0 +1,49 @@
+{
+  "id": "TASK-001",
+  "title": "示例自动研发任务",
+  "type": "feature",
+  "priority": "P0",
+  "goal": "把这里替换成真实需求目标。",
+  "workspace": "",
+  "worktree": {
+    "enabled": false,
+    "baseRef": "",
+    "dir": "",
+    "branch": ""
+  },
+  "reportDir": "",
+  "maxFixAttempts": 0,
+  "dryRun": false,
+  "policy": {
+    "disableDefaultDeny": false,
+    "denyCommands": null,
+    "denyArgsContains": null,
+    "denyPathContains": null
+  },
+  "scope": {
+    "include": [
+      "待实现功能"
+    ],
+    "exclude": [
+      "生产环境操作",
+      "真实密钥读取",
+      "自动合并"
+    ]
+  },
+  "acceptance": [
+    "验证命令通过",
+    "报告中包含执行结果"
+  ],
+  "risk": [
+    "默认 dry-run",
+    "最多自动修复 3 次"
+  ],
+  "commands": {
+    "analyze": null,
+    "plan": null,
+    "agent": null,
+    "fix": null,
+    "verify": null
+  },
+  "context": null
+}

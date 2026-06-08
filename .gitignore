@@ -1,0 +1,23 @@
+.DS_Store
+
+# Build outputs
+/agent-security-server
+/bin/
+/dist/
+/coverage.out
+
+# Harness runtime artifacts
+/.harness/reports/
+/.harness/worktrees/
+/.harness/tmp/
+
+# Local environment
+.env
+.env.*
+!.env.example
+
+# Editor / IDE
+.idea/
+.vscode/
+*.swp
+*.swo

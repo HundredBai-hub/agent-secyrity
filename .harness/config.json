@@ -1,0 +1,39 @@
+{
+  "workspace": "/Users/hb/Code/murphysec/agent-sec/agent-security-dev",
+  "reportDir": "/Users/hb/Code/murphysec/agent-sec/agent-security-dev/.harness/reports",
+  "maxFixAttempts": 3,
+  "dryRun": true,
+  "worktree": {
+    "enabled": false,
+    "baseRef": "HEAD",
+    "dir": "",
+    "branch": ""
+  },
+  "policy": {
+    "disableDefaultDeny": false,
+    "denyCommands": null,
+    "denyArgsContains": null,
+    "denyPathContains": null
+  },
+  "commands": {
+    "analyze": null,
+    "plan": null,
+    "agent": [
+      "sh",
+      "-c",
+      "echo 'manual implementation in this session'"
+    ],
+    "fix": [
+      "sh",
+      "-c",
+      "go test ./..."
+    ],
+    "verify": [
+      [
+        "go",
+        "test",
+        "./..."
+      ]
+    ]
+  }
+}

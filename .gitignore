@@ -5,6 +5,7 @@
 /bin/
 /dist/
 /coverage.out
+/.cache/
 
 # Harness runtime artifacts
 /.harness/reports/

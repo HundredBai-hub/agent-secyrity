@@ -30,7 +30,7 @@ Agent Security Platform 是面向企业 AI Agent 运行时安全的生产级工�
 | 层级 | 选择 | 说明 |
 |---|---|---|
 | Runtime Service | Go | 单二进制、标准库 HTTP、适合安全网关和策略评估 |
-| Storage | In-memory first | 第一阶段用接口隔离，后续替换 PostgreSQL / ClickHouse / OpenSearch |
+| Storage | PostgreSQL / In-memory | 默认内存，设置 `DATABASE_URL` 后使用 PostgreSQL |
 | API | REST / JSON | 先提供稳定可测接口，再扩展 SDK 和控制台 |
 | Test | Go test | 单元测试和 API 测试先行 |
 | Harness | ai-dev-harness | 管理 change、task、验证和报告 |
@@ -56,6 +56,21 @@ agent-security-dev/
 
 ```bash
 go test ./...
+```
+
+## 本地运行
+
+内存模式：
+
+```bash
+go run ./cmd/server
+```
+
+PostgreSQL 模式：
+
+```bash
+export DATABASE_URL='postgres://agent_security_user:change-me@localhost:5432/agent_security?sslmode=disable'
+go run ./cmd/server
 ```
 
 ## Harness

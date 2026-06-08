@@ -14,13 +14,14 @@ import (
 	"github.com/HundredBai-hub/agent-secyrity/internal/domain"
 	"github.com/HundredBai-hub/agent-secyrity/internal/policypack"
 	runtimeSvc "github.com/HundredBai-hub/agent-secyrity/internal/runtime"
+	postgresStore "github.com/HundredBai-hub/agent-secyrity/internal/storage/postgres"
 	"github.com/HundredBai-hub/agent-secyrity/internal/transport/httpapi"
 )
 
 func main() {
 	addr := getenv("ADDR", ":8080")
-	store := audit.NewMemoryStore()
-	packStore := policypack.NewMemoryStore()
+	store, packStore, closeStores := initStores(context.Background())
+	defer closeStores()
 	if err := packStore.Upsert(context.Background(), defaultPolicyPack()); err != nil {
 		slog.Error("seed default policy pack failed", "error", err)
 		os.Exit(1)
@@ -49,6 +50,28 @@ func main() {
 	if err := server.Shutdown(ctx); err != nil {
 		slog.Error("server shutdown failed", "error", err)
 		os.Exit(1)
+	}
+}
+
+func initStores(ctx context.Context) (audit.Store, policypack.Store, func()) {
+	dsn := os.Getenv("DATABASE_URL")
+	if dsn == "" {
+		return audit.NewMemoryStore(), policypack.NewMemoryStore(), func() {}
+	}
+	db, err := postgresStore.Open(ctx, dsn)
+	if err != nil {
+		slog.Error("open postgres failed", "error", err)
+		os.Exit(1)
+	}
+	if err := postgresStore.Migrate(ctx, db); err != nil {
+		_ = db.Close()
+		slog.Error("migrate postgres failed", "error", err)
+		os.Exit(1)
+	}
+	return postgresStore.NewAuditStore(db), postgresStore.NewPolicyPackStore(db), func() {
+		if err := db.Close(); err != nil {
+			slog.Error("close postgres failed", "error", err)
+		}
 	}
 }
 

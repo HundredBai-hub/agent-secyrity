@@ -1,3 +1,4 @@
+// Package httpapi tests HTTP API contracts and boundary validation.
 package httpapi
 
 import (
@@ -18,6 +19,7 @@ import (
 	runtimeSvc "github.com/HundredBai-hub/agent-secyrity/internal/runtime"
 )
 
+// TestHandlerEvaluateAndListAuditEvents verifies evaluation writes an audit event that can be listed.
 func TestHandlerEvaluateAndListAuditEvents(t *testing.T) {
 	store := audit.NewMemoryStore()
 	service := runtimeSvc.NewService(policy.NewEngine([]domain.Policy{
@@ -85,6 +87,170 @@ func TestHandlerEvaluateAndListAuditEvents(t *testing.T) {
 	}
 }
 
+// TestHandlerListAuditEventsFiltersAndPaginates verifies audit query filters and pagination metadata.
+func TestHandlerListAuditEventsFiltersAndPaginates(t *testing.T) {
+	store := audit.NewMemoryStore()
+	ctx := context.Background()
+	fixtures := []domain.AuditRecord{
+		{
+			ID:         "audit-old",
+			RecordedAt: time.Date(2026, 6, 8, 10, 0, 0, 0, time.UTC),
+			Event: domain.RuntimeEvent{
+				TenantID:  "tenant-a",
+				AgentID:   "agent-code-001",
+				UserID:    "dev-001",
+				TaskID:    "task-build",
+				EventType: domain.EventTypeToolCall,
+			},
+			Result: domain.EvaluationResult{Decision: domain.DecisionDeny},
+		},
+		{
+			ID:         "audit-middle",
+			RecordedAt: time.Date(2026, 6, 8, 10, 1, 0, 0, time.UTC),
+			Event: domain.RuntimeEvent{
+				TenantID:  "tenant-a",
+				AgentID:   "agent-code-001",
+				UserID:    "dev-001",
+				TaskID:    "task-build",
+				EventType: domain.EventTypeToolCall,
+			},
+			Result: domain.EvaluationResult{Decision: domain.DecisionDeny},
+		},
+		{
+			ID:         "audit-other-agent",
+			RecordedAt: time.Date(2026, 6, 8, 10, 2, 0, 0, time.UTC),
+			Event: domain.RuntimeEvent{
+				TenantID:  "tenant-a",
+				AgentID:   "agent-support-001",
+				UserID:    "support-001",
+				TaskID:    "ticket-001",
+				EventType: domain.EventTypeResponse,
+			},
+			Result: domain.EvaluationResult{Decision: domain.DecisionRedact},
+		},
+		{
+			ID:         "audit-new",
+			RecordedAt: time.Date(2026, 6, 8, 10, 3, 0, 0, time.UTC),
+			Event: domain.RuntimeEvent{
+				TenantID:  "tenant-a",
+				AgentID:   "agent-code-001",
+				UserID:    "dev-001",
+				TaskID:    "task-build",
+				EventType: domain.EventTypeToolCall,
+			},
+			Result: domain.EvaluationResult{Decision: domain.DecisionDeny},
+		},
+	}
+	for _, fixture := range fixtures {
+		if _, err := store.Append(ctx, fixture); err != nil {
+			t.Fatalf("Append() error = %v", err)
+		}
+	}
+	service := runtimeSvc.NewService(policy.NewEngine(nil), store)
+	server := httptest.NewServer(NewRouter(service, store))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL + "/v1/audit/events?tenant_id=tenant-a&agent_id=agent-code-001&user_id=dev-001&task_id=task-build&decision=deny&event_type=tool_call&limit=1&offset=1")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("StatusCode = %d, want 200", resp.StatusCode)
+	}
+	var payload struct {
+		Events     []domain.AuditRecord `json:"events"`
+		Pagination struct {
+			Limit   int  `json:"limit"`
+			Offset  int  `json:"offset"`
+			Count   int  `json:"count"`
+			HasMore bool `json:"has_more"`
+		} `json:"pagination"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		t.Fatalf("Decode() error = %v", err)
+	}
+	if len(payload.Events) != 1 {
+		t.Fatalf("len(events) = %d, want 1", len(payload.Events))
+	}
+	if payload.Events[0].ID != "audit-middle" {
+		t.Fatalf("event id = %s, want audit-middle", payload.Events[0].ID)
+	}
+	if payload.Pagination.Limit != 1 || payload.Pagination.Offset != 1 || payload.Pagination.Count != 1 || !payload.Pagination.HasMore {
+		t.Fatalf("pagination = %+v, want limit=1 offset=1 count=1 has_more=true", payload.Pagination)
+	}
+}
+
+// TestHandlerListAuditEventsRejectsInvalidQueryParameters verifies query validation at the API boundary.
+func TestHandlerListAuditEventsRejectsInvalidQueryParameters(t *testing.T) {
+	store := audit.NewMemoryStore()
+	service := runtimeSvc.NewService(policy.NewEngine(nil), store)
+	server := httptest.NewServer(NewRouter(service, store))
+	defer server.Close()
+
+	cases := []string{
+		"/v1/audit/events?limit=abc",
+		"/v1/audit/events?offset=-1",
+		"/v1/audit/events?decision=blocked",
+		"/v1/audit/events?event_type=browser_click",
+	}
+	for _, path := range cases {
+		resp, err := http.Get(server.URL + path)
+		if err != nil {
+			t.Fatalf("Get(%s) error = %v", path, err)
+		}
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Fatalf("Get(%s) status = %d, want 400", path, resp.StatusCode)
+		}
+		resp.Body.Close()
+	}
+}
+
+// TestHandlerListAuditEventsRequiresAuthorizedTenantWithAPIKeys verifies audit records cannot be queried across tenants.
+func TestHandlerListAuditEventsRequiresAuthorizedTenantWithAPIKeys(t *testing.T) {
+	authConfig, err := auth.ParseAPIKeys("auditor:auditor-secret:tenant-a")
+	if err != nil {
+		t.Fatalf("ParseAPIKeys() error = %v", err)
+	}
+	store := audit.NewMemoryStore()
+	service := runtimeSvc.NewService(policy.NewEngine(nil), store)
+	server := httptest.NewServer(NewRouterWithOptions(Options{
+		Service: service,
+		Audit:   store,
+		APIKeys: authConfig,
+	}))
+	defer server.Close()
+
+	missingTenantReq, err := http.NewRequest(http.MethodGet, server.URL+"/v1/audit/events", nil)
+	if err != nil {
+		t.Fatalf("NewRequest() error = %v", err)
+	}
+	missingTenantReq.Header.Set("Authorization", "Bearer auditor-secret")
+	missingTenantResp, err := http.DefaultClient.Do(missingTenantReq)
+	if err != nil {
+		t.Fatalf("Do() error = %v", err)
+	}
+	defer missingTenantResp.Body.Close()
+	if missingTenantResp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("missing tenant status = %d, want 400", missingTenantResp.StatusCode)
+	}
+
+	forbiddenReq, err := http.NewRequest(http.MethodGet, server.URL+"/v1/audit/events?tenant_id=tenant-b", nil)
+	if err != nil {
+		t.Fatalf("NewRequest() error = %v", err)
+	}
+	forbiddenReq.Header.Set("Authorization", "Bearer auditor-secret")
+	forbiddenResp, err := http.DefaultClient.Do(forbiddenReq)
+	if err != nil {
+		t.Fatalf("Do() error = %v", err)
+	}
+	defer forbiddenResp.Body.Close()
+	if forbiddenResp.StatusCode != http.StatusForbidden {
+		t.Fatalf("forbidden tenant status = %d, want 403", forbiddenResp.StatusCode)
+	}
+}
+
+// TestHandlerAPIKeyAuthentication verifies runtime API key authentication and tenant authorization.
 func TestHandlerAPIKeyAuthentication(t *testing.T) {
 	authConfig, err := auth.ParseAPIKeys("runtime:runtime-secret:tenant-a")
 	if err != nil {

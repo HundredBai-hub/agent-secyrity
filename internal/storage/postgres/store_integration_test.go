@@ -1,3 +1,4 @@
+// Package postgres tests PostgreSQL-backed stores.
 package postgres
 
 import (
@@ -12,6 +13,7 @@ import (
 	"github.com/HundredBai-hub/agent-secyrity/internal/policypack"
 )
 
+// TestIntegrationStoresAuditAndPolicyPacks verifies PostgreSQL-backed store behavior when a test DSN is configured.
 func TestIntegrationStoresAuditAndPolicyPacks(t *testing.T) {
 	dsn := os.Getenv("AGENT_SECURITY_POSTGRES_TEST_DSN")
 	if dsn == "" {
@@ -79,6 +81,24 @@ func TestIntegrationStoresAuditAndPolicyPacks(t *testing.T) {
 			t.Fatalf("tenant record = %s, want tenant-pg", tenantRecord.Event.TenantID)
 		}
 	}
+	filteredAuditRecords, err := auditStore.List(ctx, audit.ListOptions{
+		Limit:     1,
+		TenantID:  "tenant-pg",
+		AgentID:   "agent-code-001",
+		UserID:    "user-001",
+		TaskID:    "task-001",
+		Decision:  domain.DecisionRequireApproval,
+		EventType: domain.EventTypeToolCall,
+	})
+	if err != nil {
+		t.Fatalf("List(filtered) error = %v", err)
+	}
+	if len(filteredAuditRecords) != 1 {
+		t.Fatalf("len(filtered audit records) = %d, want 1", len(filteredAuditRecords))
+	}
+	if filteredAuditRecords[0].Result.Decision != domain.DecisionRequireApproval {
+		t.Fatalf("filtered decision = %s, want require_approval", filteredAuditRecords[0].Result.Decision)
+	}
 
 	packStore := NewPolicyPackStore(db)
 	pack := domain.PolicyPack{
@@ -144,6 +164,7 @@ func TestIntegrationStoresAuditAndPolicyPacks(t *testing.T) {
 	}
 }
 
+// minimalEvent returns a valid runtime event for store integration tests.
 func minimalEvent(tenantID string) domain.RuntimeEvent {
 	return domain.RuntimeEvent{
 		TenantID:  tenantID,

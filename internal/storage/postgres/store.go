@@ -1,3 +1,4 @@
+// Package postgres implements PostgreSQL-backed platform stores.
 package postgres
 
 import (
@@ -7,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/HundredBai-hub/agent-secyrity/internal/approval"
@@ -19,6 +21,7 @@ import (
 //go:embed migrations/001_init.sql
 var migrationSQL string
 
+// Open creates and verifies a PostgreSQL connection.
 func Open(ctx context.Context, dsn string) (*sql.DB, error) {
 	db, err := sql.Open("pgx", dsn)
 	if err != nil {
@@ -31,19 +34,23 @@ func Open(ctx context.Context, dsn string) (*sql.DB, error) {
 	return db, nil
 }
 
+// Migrate applies embedded database migrations.
 func Migrate(ctx context.Context, db *sql.DB) error {
 	_, err := db.ExecContext(ctx, migrationSQL)
 	return err
 }
 
+// AuditStore persists audit records in PostgreSQL.
 type AuditStore struct {
 	db *sql.DB
 }
 
+// NewAuditStore returns a PostgreSQL-backed audit store.
 func NewAuditStore(db *sql.DB) *AuditStore {
 	return &AuditStore{db: db}
 }
 
+// Append stores one audit record.
 func (s *AuditStore) Append(ctx context.Context, record domain.AuditRecord) (domain.AuditRecord, error) {
 	if record.ID == "" {
 		record.ID = fmt.Sprintf("audit-%d", time.Now().UTC().UnixNano())
@@ -71,31 +78,42 @@ ON CONFLICT (id) DO UPDATE SET
 	return record, nil
 }
 
+// List returns audit records matching filters, ordered newest first.
 func (s *AuditStore) List(ctx context.Context, opts audit.ListOptions) ([]domain.AuditRecord, error) {
-	limit := opts.Limit
-	if limit <= 0 || limit > 1000 {
-		limit = 100
+	opts = opts.Normalize()
+	query := strings.Builder{}
+	query.WriteString("SELECT record FROM audit_records")
+	var conditions []string
+	var args []any
+	addCondition := func(sql string, value any) {
+		args = append(args, value)
+		conditions = append(conditions, fmt.Sprintf(sql, len(args)))
 	}
 	if opts.TenantID != "" {
-		rows, err := s.db.QueryContext(ctx, `
-SELECT record
-FROM audit_records
-WHERE tenant_id = $1
-ORDER BY recorded_at DESC
-LIMIT $2
-`, opts.TenantID, limit)
-		if err != nil {
-			return nil, err
-		}
-		defer rows.Close()
-		return scanAuditRecords(rows)
+		addCondition("tenant_id = $%d", opts.TenantID)
 	}
-	rows, err := s.db.QueryContext(ctx, `
-SELECT record
-FROM audit_records
-ORDER BY recorded_at DESC
-LIMIT $1
-`, limit)
+	if opts.AgentID != "" {
+		addCondition("record->'event'->>'agent_id' = $%d", opts.AgentID)
+	}
+	if opts.UserID != "" {
+		addCondition("record->'event'->>'user_id' = $%d", opts.UserID)
+	}
+	if opts.TaskID != "" {
+		addCondition("record->'event'->>'task_id' = $%d", opts.TaskID)
+	}
+	if opts.Decision != "" {
+		addCondition("decision = $%d", opts.Decision)
+	}
+	if opts.EventType != "" {
+		addCondition("event_type = $%d", opts.EventType)
+	}
+	if len(conditions) > 0 {
+		query.WriteString(" WHERE ")
+		query.WriteString(strings.Join(conditions, " AND "))
+	}
+	args = append(args, opts.Limit, opts.Offset)
+	query.WriteString(fmt.Sprintf(" ORDER BY recorded_at DESC LIMIT $%d OFFSET $%d", len(args)-1, len(args)))
+	rows, err := s.db.QueryContext(ctx, query.String(), args...)
 	if err != nil {
 		return nil, err
 	}

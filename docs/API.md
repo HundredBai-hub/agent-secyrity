@@ -97,14 +97,20 @@ Authorization: Bearer replace-with-runtime-key
 
 ## `GET /v1/audit/events`
 
-查询审计事件。
+查询审计事件。响应按 `recorded_at` 倒序返回，用于安全运营按租户、Agent、用户、任务和决策快速定位运行时风险记录。
 
 可选查询参数：
 
 | 参数 | 说明 |
 |---|---|
 | `limit` | 返回数量，默认 100，最大 1000 |
+| `offset` | 分页偏移量，默认 0 |
 | `tenant_id` | 租户过滤条件；启用 API Key 认证后必填，并且必须属于当前 API Key 允许范围 |
+| `agent_id` | Agent ID 过滤条件 |
+| `user_id` | 用户 ID 过滤条件 |
+| `task_id` | 业务任务 ID 过滤条件 |
+| `decision` | 决策过滤条件，可选 `allow`、`record`、`redact`、`require_approval`、`deny` |
+| `event_type` | 事件类型过滤条件，可选 `prompt`、`tool_call`、`file_access`、`network_access`、`response`、`approval` |
 
 响应：
 
@@ -130,7 +136,13 @@ Authorization: Bearer replace-with-runtime-key
         "matched_policy_ids": ["deny-secret-file-access"]
       }
     }
-  ]
+  ],
+  "pagination": {
+    "limit": 100,
+    "offset": 0,
+    "count": 1,
+    "has_more": false
+  }
 }
 ```
 

@@ -1,3 +1,4 @@
+// Package httpapi exposes the Agent Security Platform REST API.
 package httpapi
 
 import (
@@ -20,6 +21,7 @@ type contextKey string
 
 const apiKeyContextKey contextKey = "api_key"
 
+// Options configures the HTTP API router dependencies.
 type Options struct {
 	Service     *runtimeSvc.Service
 	Audit       audit.Store
@@ -28,6 +30,7 @@ type Options struct {
 	APIKeys     auth.APIKeyConfig
 }
 
+// Handler owns HTTP route handlers and shared dependencies.
 type Handler struct {
 	service       *runtimeSvc.Service
 	store         audit.Store
@@ -36,18 +39,22 @@ type Handler struct {
 	apiKeys       auth.APIKeyConfig
 }
 
+// NewRouter creates a router with runtime service and audit store dependencies.
 func NewRouter(service *runtimeSvc.Service, store audit.Store) http.Handler {
 	return NewRouterWithOptions(Options{Service: service, Audit: store})
 }
 
+// NewRouterWithPolicyPacks creates a router with policy pack management enabled.
 func NewRouterWithPolicyPacks(service *runtimeSvc.Service, store audit.Store, packStore policypack.Store) http.Handler {
 	return NewRouterWithOptions(Options{Service: service, Audit: store, PolicyPacks: packStore})
 }
 
+// NewRouterWithStores creates a router with policy pack and approval stores enabled.
 func NewRouterWithStores(service *runtimeSvc.Service, store audit.Store, packStore policypack.Store, approvalStore approval.Store) http.Handler {
 	return NewRouterWithOptions(Options{Service: service, Audit: store, PolicyPacks: packStore, Approvals: approvalStore})
 }
 
+// NewRouterWithOptions creates a router from explicit dependencies.
 func NewRouterWithOptions(opts Options) http.Handler {
 	handler := &Handler{
 		service:       opts.Service,
@@ -59,6 +66,7 @@ func NewRouterWithOptions(opts Options) http.Handler {
 	return handler.withAuth(handler.router())
 }
 
+// router registers API routes.
 func (h *Handler) router() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", h.healthz)
@@ -75,10 +83,12 @@ func (h *Handler) router() http.Handler {
 	return mux
 }
 
+// healthz reports service liveness.
 func (h *Handler) healthz(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
+// evaluate evaluates one runtime event and records the audit result.
 func (h *Handler) evaluate(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	var event domain.RuntimeEvent
@@ -108,32 +118,45 @@ func (h *Handler) evaluate(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, result)
 }
 
+// listAuditEvents queries audit events using tenant, actor, task, decision and event filters.
 func (h *Handler) listAuditEvents(w http.ResponseWriter, r *http.Request) {
-	tenantID := r.URL.Query().Get("tenant_id")
+	opts, err := parseAuditListOptions(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_audit_query", err.Error())
+		return
+	}
 	if h.apiKeys.Enabled() {
-		if tenantID == "" {
+		if opts.TenantID == "" {
 			writeError(w, http.StatusBadRequest, "tenant_id_required", "tenant_id query parameter is required when API key authentication is enabled")
 			return
 		}
-		if !h.authorizeTenant(w, r, tenantID) {
+		if !h.authorizeTenant(w, r, opts.TenantID) {
 			return
 		}
 	}
-	limit := 100
-	if raw := r.URL.Query().Get("limit"); raw != "" {
-		parsed, err := strconv.Atoi(raw)
-		if err != nil {
-			writeError(w, http.StatusBadRequest, "invalid_limit", "limit must be an integer")
-			return
-		}
-		limit = parsed
-	}
-	records, err := h.store.List(r.Context(), audit.ListOptions{Limit: limit, TenantID: tenantID})
+	normalized := opts.Normalize()
+	records, err := h.store.List(r.Context(), normalized)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "audit_list_failed", err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string][]domain.AuditRecord{"events": records})
+	nextPageOpts := normalized
+	nextPageOpts.Limit = 1
+	nextPageOpts.Offset = normalized.Offset + normalized.Limit
+	nextPageRecords, err := h.store.List(r.Context(), nextPageOpts)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "audit_list_failed", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, auditEventsResponse{
+		Events: records,
+		Pagination: paginationResponse{
+			Limit:   normalized.Limit,
+			Offset:  normalized.Offset,
+			Count:   len(records),
+			HasMore: len(nextPageRecords) > 0,
+		},
+	})
 }
 
 func (h *Handler) upsertPolicyPack(w http.ResponseWriter, r *http.Request) {
@@ -333,6 +356,77 @@ func (h *Handler) decideApproval(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, request)
 }
 
+// auditEventsResponse is the response contract for audit list queries.
+type auditEventsResponse struct {
+	Events     []domain.AuditRecord `json:"events"`
+	Pagination paginationResponse   `json:"pagination"`
+}
+
+// paginationResponse describes the returned audit page without requiring a total count query.
+type paginationResponse struct {
+	Limit   int  `json:"limit"`
+	Offset  int  `json:"offset"`
+	Count   int  `json:"count"`
+	HasMore bool `json:"has_more"`
+}
+
+// parseAuditListOptions validates external query parameters for audit listing.
+func parseAuditListOptions(r *http.Request) (audit.ListOptions, error) {
+	query := r.URL.Query()
+	opts := audit.ListOptions{
+		TenantID: query.Get("tenant_id"),
+		AgentID:  query.Get("agent_id"),
+		UserID:   query.Get("user_id"),
+		TaskID:   query.Get("task_id"),
+	}
+	if raw := query.Get("limit"); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil {
+			return audit.ListOptions{}, errors.New("limit must be an integer")
+		}
+		if parsed < 0 {
+			return audit.ListOptions{}, errors.New("limit must be greater than or equal to 0")
+		}
+		opts.Limit = parsed
+	}
+	if raw := query.Get("offset"); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil {
+			return audit.ListOptions{}, errors.New("offset must be an integer")
+		}
+		if parsed < 0 {
+			return audit.ListOptions{}, errors.New("offset must be greater than or equal to 0")
+		}
+		opts.Offset = parsed
+	}
+	if raw := query.Get("decision"); raw != "" {
+		decision := domain.Decision(raw)
+		if !validDecision(decision) {
+			return audit.ListOptions{}, errors.New("decision is unsupported")
+		}
+		opts.Decision = decision
+	}
+	if raw := query.Get("event_type"); raw != "" {
+		eventType := domain.EventType(raw)
+		if !eventType.Valid() {
+			return audit.ListOptions{}, errors.New("event_type is unsupported")
+		}
+		opts.EventType = eventType
+	}
+	return opts, nil
+}
+
+// validDecision reports whether a decision query value is supported.
+func validDecision(decision domain.Decision) bool {
+	switch decision {
+	case domain.DecisionAllow, domain.DecisionRecord, domain.DecisionRedact, domain.DecisionRequireApproval, domain.DecisionDeny:
+		return true
+	default:
+		return false
+	}
+}
+
+// withAuth applies API key authentication when configured.
 func (h *Handler) withAuth(next http.Handler) http.Handler {
 	if !h.apiKeys.Enabled() {
 		return next
@@ -352,6 +446,7 @@ func (h *Handler) withAuth(next http.Handler) http.Handler {
 	})
 }
 
+// authorizeTenant checks that the authenticated API key can access the tenant.
 func (h *Handler) authorizeTenant(w http.ResponseWriter, r *http.Request, tenantID string) bool {
 	if !h.apiKeys.Enabled() {
 		return true
@@ -364,12 +459,14 @@ func (h *Handler) authorizeTenant(w http.ResponseWriter, r *http.Request, tenant
 	return true
 }
 
+// writeJSON writes a JSON response with a status code.
 func writeJSON(w http.ResponseWriter, status int, payload any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(payload)
 }
 
+// writeError writes a standard JSON error response.
 func writeError(w http.ResponseWriter, status int, code string, message string) {
 	writeJSON(w, status, map[string]string{
 		"error":   code,
@@ -377,6 +474,7 @@ func writeError(w http.ResponseWriter, status int, code string, message string) 
 	})
 }
 
+// writeErrorWithDetails writes a standard JSON error response with structured details.
 func writeErrorWithDetails(w http.ResponseWriter, status int, code string, message string, details any) {
 	writeJSON(w, status, map[string]any{
 		"error":   code,

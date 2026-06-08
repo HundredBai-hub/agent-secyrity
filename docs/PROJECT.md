@@ -12,7 +12,7 @@ Agent Security Platform 是面向企业 AI Agent 运行时安全的控制面与�
 | Domain | `internal/domain` | 运行时事件、策略、决策、审批、审计领域模型 | 随领域模型稳定化变更补齐 |
 | Runtime Service | `internal/runtime` | 串联策略评估、审计记录和审批执行校验 | 随运行时编排变更补齐 |
 | Policy Engine | `internal/policy` | 根据租户策略、主体、资源、动作和数据标签计算决策 | 随策略语言变更补齐 |
-| Audit Store | `internal/audit` | 审计记录存储接口与内存实现 | 随审计查询能力变更补齐 |
+| Audit Store | `internal/audit` | 审计记录存储接口、过滤分页查询和内存实现 | [Audit Query API 模块说明](modules/audit-query-api/MODULE.md) |
 | Policy Pack Store | `internal/policypack` | 策略包治理接口与内存实现 | 随策略包治理变更补齐 |
 | Approval Store | `internal/approval` | 审批单状态流转、过期和决策接口 | 随审批流扩展变更补齐 |
 | PostgreSQL Store | `internal/storage/postgres` | 审计、策略包、审批单的 PostgreSQL 持久化实现 | 随数据库迁移变更补齐 |

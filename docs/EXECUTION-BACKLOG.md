@@ -20,7 +20,7 @@
 | 2 | `policy-simulator` | done | 支持策略包 dry-run / simulate，用于上线前验证策略命中和误拦截 | `go test ./internal/policy ./internal/transport/httpapi` |
 | 3 | `baseline-policy-packs` | done | 提供内置高频场景策略包：代码仓库、客服、财务审批、数据分析 | `go test ./internal/policypack ./internal/runtime` |
 | 4 | `audit-query-api` | done | 增强审计查询过滤、分页、按 Agent / User / Task / Decision 检索 | `go test ./internal/audit ./internal/storage/postgres ./internal/transport/httpapi` |
-| 5 | `runtime-enforcement-sdk` | todo | Go SDK 增加执行拦截器，封装 evaluate -> approval -> retry -> execute 流程 | `go test ./sdk/go/agentsec` |
+| 5 | `runtime-enforcement-sdk` | done | Go SDK 增加执行拦截器，封装 evaluate -> approval -> retry -> execute 流程 | `go test ./sdk/go/agentsec` |
 | 6 | `business-scenario-benchmarks` | todo | 建立真实业务场景 benchmark 和端到端验收用例 | `go test ./...` |
 
 ## P1：企业运营能力
@@ -47,7 +47,7 @@
 
 ## 当前执行指针
 
-下一项：`runtime-enforcement-sdk`
+下一项：`business-scenario-benchmarks`
 
 ## 单任务执行模板
 

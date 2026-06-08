@@ -76,6 +76,68 @@ case result.Denied():
 }
 ```
 
+## 使用执行拦截器
+
+`Enforcer` 封装了工具执行前最容易写错的控制流：先评估、按决策拦截、必要时等待审批、审批通过后带 `approval_id` 重评估，最后才执行真实动作。
+
+```go
+enforcer, err := agentsec.NewEnforcer(client)
+if err != nil {
+	return err
+}
+
+result, err := enforcer.Execute(ctx, agentsec.Operation{
+	Event: agentsec.RuntimeEvent{
+		SchemaVersion: agentsec.RuntimeEventSchemaV1,
+		TenantID:      "tenant-a",
+		AgentID:       "agent-code-001",
+		UserID:        "dev-001",
+		TaskID:        "fix-build",
+		EventType:     agentsec.EventTypeToolCall,
+		ToolName:      "deploy_cli",
+		Resource:      "staging-service",
+		Action:        "read",
+		DataLabels:    []string{"deployment"},
+	},
+	Action: func(ctx context.Context) (any, error) {
+		return inspectDeployment(ctx, "staging-service")
+	},
+})
+if err != nil {
+	var enforcementErr *agentsec.EnforcementError
+	if errors.As(err, &enforcementErr) {
+		return fmt.Errorf("operation blocked by policy: %s", enforcementErr.Reason)
+	}
+	return err
+}
+_ = result.Output
+```
+
+遇到 `deny`、`redact` 或没有审批等待器的 `require_approval` 时，`Execute` 不会执行 `Action`，并返回 `*agentsec.EnforcementError`。
+
+如需支持审批等待，可以注入 `ApprovalWaiter`。SDK 不内置默认轮询，避免替业务方假设审批来源和超时策略。
+
+```go
+type MyApprovalWaiter struct{}
+
+func (w MyApprovalWaiter) WaitApproval(
+	ctx context.Context,
+	client *agentsec.Client,
+	result agentsec.EvaluationResult,
+	event agentsec.RuntimeEvent,
+) (agentsec.ApprovalRequest, error) {
+	// 可以轮询控制面、等待工单回调，或对接企业 IM 审批。
+	return client.GetApproval(ctx, event.TenantID, result.ApprovalID)
+}
+
+enforcer, err := agentsec.NewEnforcer(
+	client,
+	agentsec.WithApprovalWaiter(MyApprovalWaiter{}),
+)
+```
+
+审批状态必须是 `approved`。审批通过后，SDK 会把 `approval_id` 写回事件并再次调用 `Evaluate`；只有第二次评估结果为 `allow` 或 `record`，才会执行 `Action`。
+
 ## 审批复用
 
 当决策为 `require_approval` 时，服务端会返回 `approval_id`。审批通过后，Agent 需要重新提交同一运行时事件，并带上该 `approval_id`。

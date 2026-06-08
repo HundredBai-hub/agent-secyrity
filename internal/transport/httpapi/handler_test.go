@@ -11,6 +11,7 @@ import (
 
 	"github.com/HundredBai-hub/agent-secyrity/internal/approval"
 	"github.com/HundredBai-hub/agent-secyrity/internal/audit"
+	"github.com/HundredBai-hub/agent-secyrity/internal/auth"
 	"github.com/HundredBai-hub/agent-secyrity/internal/domain"
 	"github.com/HundredBai-hub/agent-secyrity/internal/policy"
 	"github.com/HundredBai-hub/agent-secyrity/internal/policypack"
@@ -82,6 +83,48 @@ func TestHandlerEvaluateAndListAuditEvents(t *testing.T) {
 	if len(payload.Events) != 1 {
 		t.Fatalf("len(events) = %d, want 1", len(payload.Events))
 	}
+}
+
+func TestHandlerAPIKeyAuthentication(t *testing.T) {
+	authConfig, err := auth.ParseAPIKeys("runtime:runtime-secret:tenant-a")
+	if err != nil {
+		t.Fatalf("ParseAPIKeys() error = %v", err)
+	}
+	store := audit.NewMemoryStore()
+	service := runtimeSvc.NewService(policy.NewEngine(nil), store)
+	server := httptest.NewServer(NewRouterWithOptions(Options{
+		Service: service,
+		Audit:   store,
+		APIKeys: authConfig,
+	}))
+	defer server.Close()
+
+	healthResp, err := http.Get(server.URL + "/healthz")
+	if err != nil {
+		t.Fatalf("Get(healthz) error = %v", err)
+	}
+	defer healthResp.Body.Close()
+	if healthResp.StatusCode != http.StatusOK {
+		t.Fatalf("health status = %d, want 200", healthResp.StatusCode)
+	}
+
+	unauthorizedResp := postEvaluate(t, server.URL, "", "tenant-a")
+	if unauthorizedResp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("unauthorized status = %d, want 401", unauthorizedResp.StatusCode)
+	}
+	unauthorizedResp.Body.Close()
+
+	forbiddenResp := postEvaluate(t, server.URL, "runtime-secret", "tenant-b")
+	if forbiddenResp.StatusCode != http.StatusForbidden {
+		t.Fatalf("forbidden status = %d, want 403", forbiddenResp.StatusCode)
+	}
+	forbiddenResp.Body.Close()
+
+	allowedResp := postEvaluate(t, server.URL, "runtime-secret", "tenant-a")
+	if allowedResp.StatusCode != http.StatusOK {
+		t.Fatalf("allowed status = %d, want 200", allowedResp.StatusCode)
+	}
+	allowedResp.Body.Close()
 }
 
 func TestHandlerManagesApprovals(t *testing.T) {
@@ -157,6 +200,31 @@ func TestHandlerManagesApprovals(t *testing.T) {
 	if otherTenantResp.StatusCode != http.StatusNotFound {
 		t.Fatalf("StatusCode = %d, want 404 for other tenant", otherTenantResp.StatusCode)
 	}
+}
+
+func postEvaluate(t *testing.T, serverURL string, apiKey string, tenantID string) *http.Response {
+	t.Helper()
+	body := bytes.NewBufferString(`{
+		"tenant_id":"` + tenantID + `",
+		"agent_id":"agent-support-001",
+		"user_id":"user-001",
+		"task_id":"ticket-001",
+		"event_type":"response",
+		"action":"write"
+	}`)
+	req, err := http.NewRequest(http.MethodPost, serverURL+"/v1/evaluate", body)
+	if err != nil {
+		t.Fatalf("NewRequest() error = %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("Do() error = %v", err)
+	}
+	return resp
 }
 
 func TestHandlerManagesPolicyPacks(t *testing.T) {

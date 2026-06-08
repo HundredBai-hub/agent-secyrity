@@ -16,7 +16,8 @@ type Store interface {
 }
 
 type ListOptions struct {
-	Limit int
+	Limit    int
+	TenantID string
 }
 
 type MemoryStore struct {
@@ -55,10 +56,24 @@ func (s *MemoryStore) List(ctx context.Context, opts ListOptions) ([]domain.Audi
 	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	start := len(s.records) - limit
+	records := s.records
+	if opts.TenantID != "" {
+		records = filterRecordsByTenant(records, opts.TenantID)
+	}
+	start := len(records) - limit
 	if start < 0 {
 		start = 0
 	}
-	result := append([]domain.AuditRecord(nil), s.records[start:]...)
+	result := append([]domain.AuditRecord(nil), records[start:]...)
 	return result, nil
+}
+
+func filterRecordsByTenant(records []domain.AuditRecord, tenantID string) []domain.AuditRecord {
+	filtered := make([]domain.AuditRecord, 0, len(records))
+	for _, record := range records {
+		if record.Event.TenantID == tenantID {
+			filtered = append(filtered, record)
+		}
+	}
+	return filtered
 }

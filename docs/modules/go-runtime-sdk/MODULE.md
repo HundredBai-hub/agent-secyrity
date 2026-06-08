@@ -29,10 +29,11 @@
 | Approval Query | 查询租户审批单列表和单个审批单 |
 | Approval Decide | 提交审批通过或拒绝动作 |
 | APIError | 非 2xx 响应统一返回 `StatusCode`、`Code`、`Message` |
-| Client Option | 支持自定义 `http.Client` 和 `User-Agent` |
+| Client Option | 支持自定义 `http.Client`、`User-Agent` 和 API Key |
 
 ## 重要约束
 
 - SDK 不导入 `internal/domain`，避免外部项目无法导入 internal 包。
-- SDK 暂不内置鉴权和重试，避免在安全决策链路中隐式重复提交事件。
+- SDK 只负责注入 API Key Header，不负责密钥存储、轮换或刷新。
+- SDK 暂不内置重试，避免在安全决策链路中隐式重复提交事件。
 - SDK wire type 与 HTTP API JSON 字段保持一致，新增字段应优先做到向后兼容。

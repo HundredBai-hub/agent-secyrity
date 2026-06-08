@@ -18,11 +18,14 @@ import "github.com/HundredBai-hub/agent-secyrity/sdk/go/agentsec"
 client, err := agentsec.NewClient(
 	"http://127.0.0.1:8080",
 	agentsec.WithUserAgent("my-agent-runtime/1.0"),
+	agentsec.WithAPIKey(os.Getenv("AGENT_SECURITY_API_KEY")),
 )
 if err != nil {
 	return err
 }
 ```
+
+`WithAPIKey` 会自动发送 `Authorization: Bearer <key>`。真实密钥应由环境变量、密钥管理系统或部署平台注入，不应写死在业务代码中。
 
 如需统一超时、代理、TLS 或网关 Header，可注入自定义 `http.Client`：
 

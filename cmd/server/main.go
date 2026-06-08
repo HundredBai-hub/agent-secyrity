@@ -12,6 +12,7 @@ import (
 
 	"github.com/HundredBai-hub/agent-secyrity/internal/approval"
 	"github.com/HundredBai-hub/agent-secyrity/internal/audit"
+	"github.com/HundredBai-hub/agent-secyrity/internal/auth"
 	"github.com/HundredBai-hub/agent-secyrity/internal/domain"
 	"github.com/HundredBai-hub/agent-secyrity/internal/policypack"
 	runtimeSvc "github.com/HundredBai-hub/agent-secyrity/internal/runtime"
@@ -33,9 +34,14 @@ func main() {
 		ApprovalStore: stores.Approvals,
 		ApprovalTTL:   15 * time.Minute,
 	})
+	apiKeys, err := auth.ParseAPIKeys(os.Getenv("AGENT_SECURITY_API_KEYS"))
+	if err != nil {
+		slog.Error("parse API key configuration failed", "error", err)
+		os.Exit(1)
+	}
 	server := &http.Server{
 		Addr:              addr,
-		Handler:           httpapi.NewRouterWithStores(service, stores.Audit, stores.PolicyPacks, stores.Approvals),
+		Handler:           httpapi.NewRouterWithOptions(httpapi.Options{Service: service, Audit: stores.Audit, PolicyPacks: stores.PolicyPacks, Approvals: stores.Approvals, APIKeys: apiKeys}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

@@ -83,6 +83,26 @@ func TestClientEvaluate(t *testing.T) {
 	}
 }
 
+func TestClientSendsAPIKey(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("Authorization"); got != "Bearer sdk-secret" {
+			t.Fatalf("authorization = %q, want Bearer sdk-secret", got)
+		}
+		writeTestJSON(t, w, http.StatusOK, EvaluationResult{Decision: DecisionAllow})
+	}))
+	defer server.Close()
+
+	client, err := NewClient(server.URL, WithAPIKey("sdk-secret"))
+	if err != nil {
+		t.Fatalf("new client: %v", err)
+	}
+	if _, err := client.Evaluate(context.Background(), RuntimeEvent{TenantID: "tenant-a"}); err != nil {
+		t.Fatalf("evaluate: %v", err)
+	}
+}
+
 func TestClientReturnsAPIError(t *testing.T) {
 	t.Parallel()
 

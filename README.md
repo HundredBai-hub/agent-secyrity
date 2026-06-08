@@ -16,6 +16,7 @@ Agent Security Platform 是面向企业 AI Agent 运行时安全的生产级工�
 - 策略运营 API：支持按租户创建、查询、列出、启停策略包。
 - 审批流：`require_approval` 自动生成审批单，支持审批通过、拒绝、过期和审计。
 - Go Runtime SDK：为 Go Agent、工具代理和网关插件提供标准接入方式。
+- API Key 认证：支持按密钥绑定租户访问范围，保护运行时控制面 API。
 - 支撑生产落地：稳定 API、明确模块边界、可测试、可审计、可扩展。
 
 ## 工程约束
@@ -35,6 +36,7 @@ Agent Security Platform 是面向企业 AI Agent 运行时安全的生产级工�
 | Storage | PostgreSQL / In-memory | 默认内存，设置 `DATABASE_URL` 后使用 PostgreSQL |
 | API | REST / JSON | 先提供稳定可测接口，再扩展 SDK 和控制台 |
 | SDK | Go 标准库 | `sdk/go/agentsec` 封装运行时评估和审批 API |
+| Auth | Static API Key | 通过环境变量配置 API Key 和租户访问范围 |
 | Test | Go test | 单元测试和 API 测试先行 |
 | Harness | ai-dev-harness | 管理 change、task、验证和报告 |
 
@@ -106,6 +108,15 @@ PostgreSQL 模式：
 export DATABASE_URL='postgres://agent_security_user:change-me@localhost:5432/agent_security?sslmode=disable'
 go run ./cmd/server
 ```
+
+启用 API Key 认证：
+
+```bash
+export AGENT_SECURITY_API_KEYS='runtime:replace-with-runtime-key:tenant-a,tenant-b'
+go run ./cmd/server
+```
+
+配置格式为 `key-id:secret:tenant-list`，多个 Key 用 `;` 分隔，多个租户用 `,` 分隔。`tenant-list` 可使用 `*` 表示允许访问所有租户。真实密钥应由部署环境注入，不应提交到仓库。
 
 ## Harness
 

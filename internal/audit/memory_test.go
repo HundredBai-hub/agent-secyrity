@@ -41,3 +41,31 @@ func TestMemoryStoreAppendAndList(t *testing.T) {
 		t.Fatalf("Decision = %s", records[0].Result.Decision)
 	}
 }
+
+func TestMemoryStoreListFiltersByTenant(t *testing.T) {
+	store := NewMemoryStore()
+	ctx := context.Background()
+	if _, err := store.Append(ctx, domain.AuditRecord{
+		Event:  domain.RuntimeEvent{TenantID: "tenant-a", EventType: domain.EventTypeToolCall},
+		Result: domain.EvaluationResult{Decision: domain.DecisionAllow},
+	}); err != nil {
+		t.Fatalf("Append() error = %v", err)
+	}
+	if _, err := store.Append(ctx, domain.AuditRecord{
+		Event:  domain.RuntimeEvent{TenantID: "tenant-b", EventType: domain.EventTypeToolCall},
+		Result: domain.EvaluationResult{Decision: domain.DecisionDeny},
+	}); err != nil {
+		t.Fatalf("Append() error = %v", err)
+	}
+
+	records, err := store.List(ctx, ListOptions{Limit: 10, TenantID: "tenant-a"})
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	if len(records) != 1 {
+		t.Fatalf("len(records) = %d, want 1", len(records))
+	}
+	if records[0].Event.TenantID != "tenant-a" {
+		t.Fatalf("tenant_id = %s, want tenant-a", records[0].Event.TenantID)
+	}
+}

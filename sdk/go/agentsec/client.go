@@ -175,6 +175,7 @@ type Client struct {
 	baseURL    string
 	httpClient *http.Client
 	userAgent  string
+	apiKey     string
 }
 
 // Option customizes Client construction.
@@ -194,6 +195,15 @@ func WithUserAgent(userAgent string) Option {
 	return func(c *Client) {
 		if strings.TrimSpace(userAgent) != "" {
 			c.userAgent = userAgent
+		}
+	}
+}
+
+// WithAPIKey configures the Bearer token used for authenticated API calls.
+func WithAPIKey(apiKey string) Option {
+	return func(c *Client) {
+		if strings.TrimSpace(apiKey) != "" {
+			c.apiKey = apiKey
 		}
 	}
 }
@@ -303,6 +313,9 @@ func (c *Client) newRequest(ctx context.Context, method string, path string, inp
 	}
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", c.userAgent)
+	if c.apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+c.apiKey)
+	}
 	if input != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}

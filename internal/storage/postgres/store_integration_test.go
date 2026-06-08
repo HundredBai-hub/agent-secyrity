@@ -46,12 +46,38 @@ func TestIntegrationStoresAuditAndPolicyPacks(t *testing.T) {
 	if record.ID == "" {
 		t.Fatal("Append() returned empty ID")
 	}
+	if _, err := auditStore.Append(ctx, domain.AuditRecord{
+		Event: domain.RuntimeEvent{
+			TenantID:  "tenant-other",
+			AgentID:   "agent-code-001",
+			UserID:    "user-001",
+			TaskID:    "task-001",
+			EventType: domain.EventTypeToolCall,
+			ToolName:  "shell",
+			Action:    "execute",
+		},
+		Result: domain.EvaluationResult{Decision: domain.DecisionDeny},
+	}); err != nil {
+		t.Fatalf("Append(other tenant) error = %v", err)
+	}
 	records, err := auditStore.List(ctx, audit.ListOptions{Limit: 10})
 	if err != nil {
 		t.Fatalf("List() error = %v", err)
 	}
 	if len(records) == 0 {
 		t.Fatal("List() returned no audit records")
+	}
+	tenantRecords, err := auditStore.List(ctx, audit.ListOptions{Limit: 10, TenantID: "tenant-pg"})
+	if err != nil {
+		t.Fatalf("List(tenant) error = %v", err)
+	}
+	if len(tenantRecords) == 0 {
+		t.Fatal("List(tenant) returned no audit records")
+	}
+	for _, tenantRecord := range tenantRecords {
+		if tenantRecord.Event.TenantID != "tenant-pg" {
+			t.Fatalf("tenant record = %s, want tenant-pg", tenantRecord.Event.TenantID)
+		}
 	}
 
 	packStore := NewPolicyPackStore(db)

@@ -76,6 +76,20 @@ func (s *AuditStore) List(ctx context.Context, opts audit.ListOptions) ([]domain
 	if limit <= 0 || limit > 1000 {
 		limit = 100
 	}
+	if opts.TenantID != "" {
+		rows, err := s.db.QueryContext(ctx, `
+SELECT record
+FROM audit_records
+WHERE tenant_id = $1
+ORDER BY recorded_at DESC
+LIMIT $2
+`, opts.TenantID, limit)
+		if err != nil {
+			return nil, err
+		}
+		defer rows.Close()
+		return scanAuditRecords(rows)
+	}
 	rows, err := s.db.QueryContext(ctx, `
 SELECT record
 FROM audit_records
@@ -86,6 +100,10 @@ LIMIT $1
 		return nil, err
 	}
 	defer rows.Close()
+	return scanAuditRecords(rows)
+}
+
+func scanAuditRecords(rows *sql.Rows) ([]domain.AuditRecord, error) {
 	var records []domain.AuditRecord
 	for rows.Next() {
 		var raw []byte

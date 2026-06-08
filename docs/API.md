@@ -1,5 +1,37 @@
 # Agent Security Platform API
 
+## Authentication
+
+服务端默认不启用鉴权，便于本地开发和测试。生产环境可以通过 `AGENT_SECURITY_API_KEYS` 启用 API Key 认证：
+
+```bash
+export AGENT_SECURITY_API_KEYS='runtime:replace-with-runtime-key:tenant-a,tenant-b;admin:replace-with-admin-key:*'
+```
+
+配置格式：
+
+| 片段 | 说明 |
+|---|---|
+| `runtime` | Key ID，用于配置识别 |
+| `replace-with-runtime-key` | Bearer Token，真实环境应由密钥管理或部署系统注入 |
+| `tenant-a,tenant-b` | 允许访问的租户列表 |
+| `*` | 允许访问所有租户 |
+
+调用 API 时使用：
+
+```http
+Authorization: Bearer replace-with-runtime-key
+```
+
+启用认证后的错误语义：
+
+| 场景 | 状态码 | 响应 |
+|---|---|---|
+| 缺少或错误 API Key | 401 | `{"error":"unauthorized","message":"missing or invalid API key"}` |
+| API Key 无权访问租户 | 403 | `{"error":"forbidden","message":"API key is not allowed to access tenant"}` |
+
+`GET /healthz` 不需要 API Key。
+
 ## `GET /healthz`
 
 健康检查。
@@ -57,6 +89,7 @@
 | 参数 | 说明 |
 |---|---|
 | `limit` | 返回数量，默认 100，最大 1000 |
+| `tenant_id` | 租户过滤条件；启用 API Key 认证后必填，并且必须属于当前 API Key 允许范围 |
 
 响应：
 

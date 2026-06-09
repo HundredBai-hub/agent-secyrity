@@ -31,7 +31,7 @@
 | 8 | `rbac-and-roles` | todo | 管理 API 角色权限模型，区分 runtime writer、policy admin、approver、auditor | `go test ./internal/auth ./internal/transport/httpapi` |
 | 9 | `policy-pack-release` | todo | 策略包版本、发布、回滚、启用范围和变更审计 | `go test ./internal/policypack ./internal/storage/postgres ./internal/transport/httpapi` |
 | 10 | `management-api` | todo | 管理面 API 聚合：租户、策略包、审批、审计、API Key | `go test ./internal/transport/httpapi` |
-| 11 | `operator-console` | todo | 控制台基础页面：策略包、审批队列、审计查询、运行时事件 | `npm test` 或对应前端测试命令 |
+| 11 | `operator-console` | done | 控制台基础页面：策略包、审批队列、审计查询、运行时事件 | `cd web/console && npm test -- --run && npm run build` |
 | 12 | `observability` | todo | 结构化日志、指标、请求 ID、审计链路 ID、运行状态探针 | `go test ./...` |
 
 ## P2：规模化和产品壁垒

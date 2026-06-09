@@ -18,6 +18,7 @@ Agent Security Platform 是面向企业 AI Agent 运行时安全的控制面与�
 | PostgreSQL Store | `internal/storage/postgres` | 审计、策略包、审批单的 PostgreSQL 持久化实现 | 随数据库迁移变更补齐 |
 | HTTP API | `internal/transport/httpapi` | REST / JSON API 路由、请求解析和错误响应 | 见 [API.md](API.md) |
 | Go Runtime SDK | `sdk/go/agentsec` | Go Agent / 工具代理 / 网关插件接入运行时安全平台的公共 SDK | [Go SDK 模块说明](modules/go-runtime-sdk/MODULE.md) |
+| Operator Console | `web/console` | 安全运营控制台，覆盖运行时总览、策略包、审批队列和审计查询 | [Operator Console 模块说明](modules/operator-console/MODULE.md) |
 
 ## 文档索引
 

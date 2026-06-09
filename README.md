@@ -16,6 +16,7 @@ Agent Security Platform 是面向企业 AI Agent 运行时安全的生产级工�
 - 策略运营 API：支持按租户创建、查询、列出、启停策略包。
 - 审批流：`require_approval` 自动生成审批单，支持审批通过、拒绝、过期和审计。
 - Go Runtime SDK：为 Go Agent、工具代理和网关插件提供标准接入方式。
+- Operator Console：提供运行时总览、策略包、审批队列和审计查询的安全运营页面。
 - API Key 认证：支持按密钥绑定租户访问范围，保护运行时控制面 API。
 - 支撑生产落地：稳定 API、明确模块边界、可测试、可审计、可扩展。
 
@@ -36,8 +37,9 @@ Agent Security Platform 是面向企业 AI Agent 运行时安全的生产级工�
 | Storage | PostgreSQL / In-memory | 默认内存，设置 `DATABASE_URL` 后使用 PostgreSQL |
 | API | REST / JSON | 先提供稳定可测接口，再扩展 SDK 和控制台 |
 | SDK | Go 标准库 | `sdk/go/agentsec` 封装运行时评估和审批 API |
+| Console | React / TypeScript / Vite | `web/console` 提供安全运营控制台 |
 | Auth | Static API Key | 通过环境变量配置 API Key 和租户访问范围 |
-| Test | Go test | 单元测试和 API 测试先行 |
+| Test | Go test / Vitest | 后端、SDK、前端测试先行 |
 | Harness | ai-dev-harness | 管理 change、task、验证和报告 |
 
 ## 目录结构
@@ -54,6 +56,7 @@ agent-security-dev/
 │   ├── runtime/                # 运行时评估服务
 │   └── transport/httpapi/      # HTTP API
 ├── sdk/go/agentsec/            # Go Runtime SDK
+├── web/console/                # Operator Console 前端控制台
 ├── docs/                       # 产品与工程文档
 ├── .harness/                   # AI Dev Harness 配置、changes、tasks、reports
 └── README.md
@@ -69,6 +72,14 @@ SDK 局部验证：
 
 ```bash
 go test ./sdk/go/agentsec
+```
+
+前端控制台验证：
+
+```bash
+cd web/console
+npm test -- --run
+npm run build
 ```
 
 ## Go Runtime SDK
@@ -93,6 +104,18 @@ result, err := client.Evaluate(ctx, agentsec.RuntimeEvent{
 ```
 
 完整接入说明见 [docs/Go-SDK.md](docs/Go-SDK.md)。
+
+## Operator Console
+
+前端控制台位于 `web/console`，用于安全运营人员查看 Agent 运行时风险、baseline 策略包、待审批动作和审计记录。
+
+```bash
+cd web/console
+npm install
+npm run dev -- --port 4174
+```
+
+本地访问：`http://127.0.0.1:4174/`。
 
 ## 本地运行
 
